@@ -11,6 +11,16 @@ telefoon, laptop en elk ander apparaat.
    en wordt automatisch bijgewerkt zodra je iets wijzigt, op elk apparaat.
 2. **AI-functies** (ververs-knop, Wijn & spijs): deze roepen je eigen serverfunctie
    (`/api/claude.js`) aan, die je Anthropic API-sleutel veilig verstopt.
+3. **Wijn toevoegen via foto** (nieuw): tik op "+" → "Foto maken" → de camera opent,
+   je maakt een foto van het etiket. Op de achtergrond (`/api/add-wine.js`) gebeurt dan
+   automatisch:
+   - **Gemini** zet de foto om in een professionele productfoto (vrijstaande fles,
+     neutrale achtergrond), met het etiket exact zoals gefotografeerd.
+   - **Claude** leest het etiket, zoekt de wijn op (scores, prijs, proefnotities) via
+     web-search.
+   - Staat dezelfde wijn (naam + producent + jaargang, exact) al in je kelder, dan
+     wordt alleen het aantal opgehoogd in plaats van een nieuwe kaart aan te maken.
+     Een andere jaargang telt als een nieuwe wijn.
 
 ## Wat je nodig hebt
 
@@ -20,6 +30,8 @@ telefoon, laptop en elk ander apparaat.
 - Een Anthropic API-sleutel via console.anthropic.com (Settings → API Keys) —
   let op: dit is een *betaalde* sleutel, los van je Claude.ai-abonnement, met lage
   kosten per gebruik voor persoonlijk gebruik.
+- Een Gemini API-sleutel via aistudio.google.com (Get API key) — heeft een gratis
+  quotum dat voor persoonlijk gebruik ruim voldoende is.
 
 ## Stap voor stap
 
@@ -59,6 +71,7 @@ voeg deze drie variabelen toe:
 | VITE_SUPABASE_URL | je Supabase Project URL |
 | VITE_SUPABASE_ANON_KEY | je Supabase anon public key |
 | ANTHROPIC_API_KEY | je Anthropic API-sleutel |
+| GEMINI_API_KEY | je Gemini API-sleutel |
 
 Klik daarna op **Deploy**. Na een minuutje krijg je een live URL, bijvoorbeeld
 `mijn-wijn.vercel.app`.

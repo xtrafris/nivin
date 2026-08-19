@@ -754,6 +754,11 @@ export default function CellarApp() {
   const [pasteText, setPasteText] = useState("");
   const [pasteError, setPasteError] = useState("");
   const [form, setForm] = useState({ wine: "", producer: "", vintage: "", region: "", country: "", grapes: "", type: "red", quantity: 1, drinkFrom: "", drinkUntil: "", peakFrom: "", peakUntil: "", notes: "" });
+  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [photoAddStatus, setPhotoAddStatus] = useState("idle"); // idle | processing | error
+  const [photoAddError, setPhotoAddError] = useState("");
+  const [photoAddResult, setPhotoAddResult] = useState(null); // { mode: "new"|"matched", wineName }
+  const cameraInputRef = useRef(null);
 
   useEffect(() => {
     if (!saveError) return;
@@ -826,6 +831,83 @@ export default function CellarApp() {
   function nextId() {
     const nums = wines.map(w => parseInt((w.id || "w0").replace("w", "")) || 0);
     return "w" + (Math.max(0, ...nums) + 1);
+  }
+
+  function normalizeMatch(s) {
+    return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+  }
+
+  function findExistingWine(info) {
+    return wines.find(w =>
+      normalizeMatch(w.producer) === normalizeMatch(info.producer) &&
+      normalizeMatch(w.wine) === normalizeMatch(info.wine) &&
+      String(w.vintage || "") === String(info.vintage || "")
+    );
+  }
+
+  async function handlePhotoCapture(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // zodat dezelfde foto opnieuw gekozen kan worden later
+    if (!file) return;
+
+    setPhotoAddStatus("processing");
+    setPhotoAddError("");
+    setPhotoAddResult(null);
+
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const [, mimeType, base64] = dataUrl.match(/^data:(.*?);base64,(.*)$/) || [];
+      if (!base64) throw new Error("Kon de foto niet lezen.");
+
+      const response = await fetch("/api/add-wine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoBase64: base64, mimeType }),
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || "Onbekende fout");
+
+      const info = data.wine || {};
+      const existing = findExistingWine(info);
+
+      if (existing) {
+        const next = wines.map(w => w.id === existing.id ? { ...w, quantity: (w.quantity || 0) + 1 } : w);
+        await persist(next);
+        setPhotoAddResult({ mode: "matched", wineName: displayName(existing) });
+      } else {
+        const id = nextId();
+        const newWine = {
+          id,
+          wine: info.wine || "Onbekende wijn",
+          producer: info.producer || "",
+          vintage: info.vintage || null,
+          region: info.region || "",
+          country: info.country || "",
+          grapes: info.grapes || "",
+          type: info.type || "red",
+          quantity: 1,
+          purchasePrice: null, currency: "EUR", bottleSize: null, storage: "assumed_ideal",
+          drinkingWindowStatus: null, drinkFrom: null, drinkUntil: null, peakFrom: null, peakUntil: null,
+          score: null, body: null, sweetness: null, tannin: null, acidity: null, alcohol: null,
+          ratings: info.ratings || {}, priceValue: info.priceValue || null, priceNote: info.priceNote || "",
+          description: info.description || "", tastingNotes: info.tastingNotes || "",
+          currentPrice: null, notes: "",
+          added: new Date().toISOString().slice(0, 10), openedCount: 0,
+          bottlePhoto: data.packshot || null,
+        };
+        await persist([...wines, newWine]);
+        setPhotoAddResult({ mode: "new", wineName: displayName(newWine) });
+      }
+      setPhotoAddStatus("idle");
+    } catch (err) {
+      setPhotoAddError(String((err && err.message) || err || "onbekende fout"));
+      setPhotoAddStatus("error");
+    }
   }
 
   function addFromPaste() {
@@ -1207,6 +1289,17 @@ export default function CellarApp() {
         .refresh-btn:disabled { cursor: default; }
         .refresh-btn-spinning { animation: spin 1s linear infinite; color: var(--wine); }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .add-choice-modal { max-width: 380px; border-radius: 24px; }
+        .add-choice-btn { width: 100%; margin-top: 12px; justify-content: center; }
+        .photo-processing-modal {
+          max-width: 300px; border-radius: 24px; padding: 32px 24px;
+          display: flex; flex-direction: column; align-items: center;
+        }
+        .photo-processing-spinner {
+          width: 40px; height: 40px; border-radius: 50%;
+          border: 3px solid var(--line); border-top-color: var(--bronze);
+          animation: spin 0.9s linear infinite;
+        }
 
         .ratings-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .rating-pill {
@@ -1521,7 +1614,7 @@ export default function CellarApp() {
           <Grape size={18} />
           <span className="nav-label">Mijn wijn</span>
         </button>
-        <button className="nav-plus" onClick={() => { setShowAdd(true); setPasteError(""); }}>
+        <button className="nav-plus" onClick={() => setShowAddChoice(true)}>
           <Plus size={18} />
         </button>
         <button className={"nav-item" + (view === "pairing" ? " nav-item-active" : "")} onClick={() => { setPairingSeedId(null); setView("pairing"); }}>
@@ -1529,6 +1622,88 @@ export default function CellarApp() {
           <span className="nav-label">Wijn &amp; spijs</span>
         </button>
       </div>
+
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={handlePhotoCapture}
+      />
+
+      {showAddChoice && (
+        <div className="modal-overlay modal-overlay-center" onClick={() => setShowAddChoice(false)}>
+          <div className="modal add-choice-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>Wijn toevoegen</span>
+              <X size={20} className="modal-close" onClick={() => setShowAddChoice(false)} />
+            </div>
+            <button
+              className="btn-open add-choice-btn"
+              onClick={() => { setShowAddChoice(false); cameraInputRef.current && cameraInputRef.current.click(); }}
+            >
+              📷 Foto maken
+            </button>
+            <p className="modal-hint">
+              Maak een foto van het etiket. De app herkent de wijn, zoekt scores en prijs op, en maakt er een
+              professionele productfoto van.
+            </p>
+            <button
+              className="btn-secondary add-choice-btn"
+              onClick={() => { setShowAddChoice(false); setShowAdd(true); setPasteError(""); }}
+            >
+              Handmatig invoeren
+            </button>
+          </div>
+        </div>
+      )}
+
+      {photoAddStatus === "processing" && (
+        <div className="modal-overlay modal-overlay-center">
+          <div className="modal photo-processing-modal">
+            <div className="photo-processing-spinner" />
+            <p className="modal-hint" style={{ marginTop: 14, textAlign: "center" }}>
+              Wijn herkennen, scores opzoeken en productfoto maken…
+              <br />Dit kan zo'n 20-30 seconden duren.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {photoAddStatus === "error" && (
+        <div className="modal-overlay modal-overlay-center" onClick={() => setPhotoAddStatus("idle")}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>Kon de wijn niet verwerken</span>
+              <X size={20} className="modal-close" onClick={() => setPhotoAddStatus("idle")} />
+            </div>
+            <p className="modal-hint">{photoAddError}</p>
+            <button className="btn-open" style={{ width: "100%", justifyContent: "center" }} onClick={() => setPhotoAddStatus("idle")}>
+              Sluiten
+            </button>
+          </div>
+        </div>
+      )}
+
+      {photoAddResult && (
+        <div className="modal-overlay modal-overlay-center" onClick={() => setPhotoAddResult(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>{photoAddResult.mode === "matched" ? "Voorraad bijgewerkt" : "Wijn toegevoegd"}</span>
+              <X size={20} className="modal-close" onClick={() => setPhotoAddResult(null)} />
+            </div>
+            <p className="modal-hint">
+              {photoAddResult.mode === "matched"
+                ? `"${photoAddResult.wineName}" stond al in je kelder — het aantal is met 1 opgehoogd.`
+                : `"${photoAddResult.wineName}" is toegevoegd aan je kelder, inclusief productfoto en gevonden gegevens.`}
+            </p>
+            <button className="btn-open" style={{ width: "100%", justifyContent: "center" }} onClick={() => setPhotoAddResult(null)}>
+              Mooi zo
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div className="modal-overlay" onClick={() => setShowAdd(false)}>
