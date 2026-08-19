@@ -28,7 +28,7 @@ async function generatePackshot(photoBase64, mimeType, geminiKey) {
     "exact zoals op de foto — verander geen tekst, logo's of ontwerp van het etiket.";
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
