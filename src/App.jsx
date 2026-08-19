@@ -763,9 +763,9 @@ export default function CellarApp() {
   const [pasteError, setPasteError] = useState("");
   const [form, setForm] = useState({ wine: "", producer: "", vintage: "", region: "", country: "", grapes: "", type: "red", quantity: 1, drinkFrom: "", drinkUntil: "", peakFrom: "", peakUntil: "", notes: "" });
   const [showAddChoice, setShowAddChoice] = useState(false);
-  const [photoAddStatus, setPhotoAddStatus] = useState("idle"); // idle | processing | error
+  const [photoAddStatus, setPhotoAddStatus] = useState("idle");
   const [photoAddError, setPhotoAddError] = useState("");
-  const [photoAddResult, setPhotoAddResult] = useState(null); // { mode: "new"|"matched", wineName }
+  const [photoAddResult, setPhotoAddResult] = useState(null);
   const cameraInputRef = useRef(null);
 
   useEffect(() => {
@@ -1013,6 +1013,11 @@ export default function CellarApp() {
       )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap');
+
+        html, body {
+          background: #F8F3E8;
+          margin: 0;
+        }
 
         .cellar-app {
           --ink: #241E14;
@@ -1381,12 +1386,12 @@ export default function CellarApp() {
         }
 
         .bottom-nav {
-          position: fixed; bottom: 14px; left: 14px; right: 14px; z-index: 30;
+          position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 14px; right: 14px; z-index: 30;
           background: rgba(255,255,255,0.65);
           border: 1px solid rgba(255,255,255,0.7);
           border-radius: 999px;
           display: flex; align-items: center; justify-content: space-around;
-          padding: 6px 14px calc(6px + env(safe-area-inset-bottom, 0px));
+          padding: 6px 14px;
           box-shadow: 0 10px 30px rgba(36,30,20,0.16);
           backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
         }
