@@ -1,7 +1,7 @@
 // Vercel serverless function. Runs op de server, nooit in de browser.
 // Combineert twee AI-stappen voor het toevoegen van een wijn via foto:
 //
-// 1. Gemini (GEMINI_API_KEY) zet de ruwe foto om in een professionele packshot
+// 1. OpenAI (OPENAI_API_KEY) zet de ruwe foto om in een professionele packshot
 //    (vrijstaande fles, neutrale achtergrond) — met behoud van het exacte etiket.
 // 2. Claude (ANTHROPIC_API_KEY) leest het etiket op de ORIGINELE foto en zoekt
 //    via web-search de wijn op: naam, producent, jaargang, streek, druiven,
@@ -19,7 +19,7 @@ export const config = {
 const RATING_SOURCES_HINT =
   "Vivino, CellarTracker, Wine Advocate, Wine Spectator, Decanter, Vinous, James Suckling, Hamersma";
 
-async function generatePackshot(photoBase64, mimeType, geminiKey) {
+async function generatePackshot(photoBase64, mimeType, openaiKey) {
   const prompt =
     "Maak van deze foto van een wijnfles een professionele productfoto (packshot): " +
     "de fles vrijstaand, rechtop, scherp gefotografeerd tegen een neutrale, lichte " +
@@ -27,32 +27,27 @@ async function generatePackshot(photoBase64, mimeType, geminiKey) {
     "productfotografie. Behoud de fles, de vorm, de kleur van het glas en het etiket " +
     "exact zoals op de foto — verander geen tekst, logo's of ontwerp van het etiket.";
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { inline_data: { mime_type: mimeType, data: photoBase64 } },
-              { text: prompt },
-            ],
-          },
-        ],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-      }),
-    }
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(`Gemini-fout: ${data.error.message || JSON.stringify(data.error)}`);
+  const buffer = Buffer.from(photoBase64, "base64");
+  const ext = (mimeType || "image/jpeg").includes("png") ? "png" : "jpg";
+  const blob = new Blob([buffer], { type: mimeType || "image/jpeg" });
 
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const imagePart = parts.find((p) => p.inline_data || p.inlineData);
-  const inline = imagePart && (imagePart.inline_data || imagePart.inlineData);
-  if (!inline) throw new Error("Gemini gaf geen afbeelding terug.");
-  return { base64: inline.data, mimeType: inline.mime_type || inline.mimeType || "image/png" };
+  const form = new FormData();
+  form.append("model", "gpt-image-1-mini");
+  form.append("image", blob, `bottle.${ext}`);
+  form.append("prompt", prompt);
+  form.append("quality", "low"); // ruim voldoende voor een kaartfoto, en spaart tegoed
+
+  const res = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${openaiKey}` },
+    body: form,
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(`OpenAI-fout: ${data.error.message || JSON.stringify(data.error)}`);
+
+  const b64 = data?.data?.[0]?.b64_json;
+  if (!b64) throw new Error("OpenAI gaf geen afbeelding terug.");
+  return { base64: b64, mimeType: "image/png" };
 }
 
 async function identifyAndEnrichWine(photoBase64, mimeType, anthropicKey) {
@@ -102,11 +97,11 @@ export default async function handler(req, res) {
     return;
   }
 
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!geminiKey || !anthropicKey) {
+  if (!openaiKey || !anthropicKey) {
     res.status(500).json({
-      error: { message: "GEMINI_API_KEY en/of ANTHROPIC_API_KEY zijn niet ingesteld op de server." },
+      error: { message: "OPENAI_API_KEY en/of ANTHROPIC_API_KEY zijn niet ingesteld op de server." },
     });
     return;
   }
@@ -120,7 +115,7 @@ export default async function handler(req, res) {
   try {
     // Beide AI-stappen mogen gelijktijdig lopen, ze zijn onafhankelijk van elkaar.
     const [packshot, wineInfo] = await Promise.all([
-      generatePackshot(photoBase64, mimeType || "image/jpeg", geminiKey),
+      generatePackshot(photoBase64, mimeType || "image/jpeg", openaiKey),
       identifyAndEnrichWine(photoBase64, mimeType || "image/jpeg", anthropicKey),
     ]);
 
