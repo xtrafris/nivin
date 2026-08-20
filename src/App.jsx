@@ -8,11 +8,11 @@ const STORAGE_KEY = "cellar-wines";
 const CURRENT_YEAR = 2026;
 
 const TYPE_META = {
-  red: { label: "Rood", color: "#B0123F", dot: "#B0123F" },
-  white: { label: "Wit", color: "#D4A72C", dot: "#E9CE72" },
-  rose: { label: "Rosé", color: "#E0577E", dot: "#F2A9C1" },
-  sparkling: { label: "Mousserend", color: "#D4A72C", dot: "#F0DA8E" },
-  orange: { label: "Oranje", color: "#DB7B32", dot: "#F1B278" },
+  red: { label: "Rood", color: "#B0123F", dot: "#B0123F", tintText: "#A6392E", tintBg: "rgba(166,57,46,0.14)" },
+  white: { label: "Wit", color: "#D4A72C", dot: "#E9CE72", tintText: "#9A7A1E", tintBg: "rgba(212,167,44,0.15)" },
+  rose: { label: "Rosé", color: "#E0577E", dot: "#F2A9C1", tintText: "#C24E72", tintBg: "rgba(224,87,126,0.14)" },
+  sparkling: { label: "Mousserend", color: "#D4A72C", dot: "#F0DA8E", tintText: "#9A7A1E", tintBg: "rgba(212,167,44,0.15)" },
+  orange: { label: "Oranje", color: "#DB7B32", dot: "#F1B278", tintText: "#B4611F", tintBg: "rgba(219,123,50,0.15)" },
 };
 
 const STATUS_META = {
@@ -69,6 +69,7 @@ function WindowGauge({ w }) {
   const df = parseInt(w.drinkFrom), du = parseInt(w.drinkUntil);
   const pf = parseInt(w.peakFrom), pu = parseInt(w.peakUntil);
   if (!df || !du) return null;
+  const tm = TYPE_META[w.type] || TYPE_META.red;
   const span = du - df || 1;
   const pct = (year) => Math.max(0, Math.min(100, ((year - df) / span) * 100));
   const nowPct = pct(CURRENT_YEAR);
@@ -77,12 +78,12 @@ function WindowGauge({ w }) {
   return (
     <div className="gauge-wrap">
       <div className="gauge-track">
-        <div className="gauge-peak" style={{ left: peakStart + "%", width: (peakEnd - peakStart) + "%" }} />
+        <div className="gauge-peak" style={{ left: peakStart + "%", width: (peakEnd - peakStart) + "%", background: tm.color }} />
         <div className="gauge-now" style={{ left: nowPct + "%" }} title={`Nu: ${CURRENT_YEAR}`} />
       </div>
       <div className="gauge-labels">
         <span>{df}</span>
-        <span className="gauge-peak-label">piek {pf}–{pu}</span>
+        <span className="gauge-peak-label" style={{ color: tm.tintText }}>piek {pf}–{pu}</span>
         <span>{du}</span>
       </div>
     </div>
@@ -315,10 +316,10 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
 
   useEffect(() => {
     if (expanded && cardRef.current) {
-      const stickyBar = document.querySelector(".search-bar-sticky");
+      const stickyBar = document.querySelector(".cellar-header");
       const stickyHeight = stickyBar ? stickyBar.offsetHeight : 0;
       const rect = cardRef.current.getBoundingClientRect();
-      const targetTop = window.scrollY + rect.top - stickyHeight - 12;
+      const targetTop = window.scrollY + rect.top - stickyHeight;
       window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
     }
   }, [expanded]);
@@ -362,7 +363,6 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
             </div>
           )}
 
-          <span className="front-qty-pill">{w.quantity}×</span>
         </div>
 
         {/* ---------- BACK — detail sheet ---------- */}
@@ -375,7 +375,9 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
             </div>
 
             <div className="taste-tags">
-              {tasteProfile(w).map((t, i) => <span key={i} className="taste-tag">{t}</span>)}
+              {tasteProfile(w).map((t, i) => (
+                <span key={i} className="taste-tag" style={{ color: tm.tintText, background: tm.tintBg }}>{t}</span>
+              ))}
             </div>
 
             <span className="back-section-label">Drinkvenster</span>
@@ -636,16 +638,29 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
     return (
       <>
         <div className="cellar-header">
-          <div className="cellar-title">
-            <span className="h1-text">Wijn &amp; spijs</span>
-            <div className="sub">Match je wijnen met gerechten</div>
+          <div className="header-top-row">
+            <div className="header-title-slot">
+              <div className="cellar-title">
+                <span className="h1-text">Wijn &amp; spijs</span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="pairing-view">
         <div className="seed-wine-banner">
-          <div className="seed-wine-name">{displayName(seedWine)}</div>
-          <div className="seed-wine-sub">{seedWine.producer}{seedWine.vintage ? ` · ${seedWine.vintage}` : ""}</div>
+          <div className="seed-wine-text">
+            <div className="seed-wine-name">{displayName(seedWine)}</div>
+            <div className="seed-wine-sub">{seedWine.producer}{seedWine.vintage ? ` · ${seedWine.vintage}` : ""}</div>
+            {avgRating(seedWine) && (
+              <span className="seed-wine-score" style={{ color: scoreColorSet(avgRating(seedWine).avg).text, background: scoreColorSet(avgRating(seedWine).avg).bg }}>
+                {avgRating(seedWine).avg}<span className="seed-wine-score-max">/100</span> {ratingLabel(avgRating(seedWine).avg)}
+              </span>
+            )}
+          </div>
+          {seedWine.bottlePhoto && (
+            <img src={seedWine.bottlePhoto} alt={seedWine.wine} className="seed-wine-photo" />
+          )}
         </div>
 
         {dishStatus === "loading" && (
@@ -682,9 +697,12 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
   return (
     <>
       <div className="cellar-header">
-        <div className="cellar-title">
-          <span className="h1-text">Wijn &amp; spijs</span>
-          <div className="sub">Match je wijnen met gerechten</div>
+        <div className="header-top-row">
+          <div className="header-title-slot">
+            <div className="cellar-title">
+              <span className="h1-text">Wijn &amp; spijs</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1049,10 +1067,11 @@ export default function CellarApp() {
         .cellar-app > * { position: relative; z-index: 1; }
 
         .cellar-header {
-          background: transparent;
+          background: rgba(248,243,232,0.92);
+          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
           color: var(--ink);
           padding: 30px 20px 22px 16px;
-          position: relative;
+          position: sticky; top: 0; z-index: 25;
         }
         .cellar-title {
           display: flex; flex-direction: column;
@@ -1110,7 +1129,7 @@ export default function CellarApp() {
 
         .filter-fullscreen {
           position: fixed; inset: 0; z-index: 60;
-          background: var(--bg);
+          background: #FFFFFF;
           transform: translateY(100%);
           -webkit-transform: translateY(100%);
           transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
@@ -1188,12 +1207,6 @@ export default function CellarApp() {
           font-size: 10.5px; font-weight: 700;
           border: 1px solid; border-radius: 999px; padding: 3px 10px; background: rgba(255,255,255,0.7);
         }
-        .front-qty-pill {
-          position: absolute; top: 16px; right: 18px; z-index: 4;
-          font-family: -apple-system, system-ui, sans-serif;
-          font-size: 10.5px; font-weight: 500; color: var(--muted);
-          background: rgba(255,255,255,0.5); border-radius: 999px; padding: 4px 10px;
-        }
         .front-text-col {
           position: relative; z-index: 3;
           width: 58%; height: 100%;
@@ -1264,23 +1277,23 @@ export default function CellarApp() {
           position: relative; height: 6px; background: rgba(36,30,20,0.08); border-radius: 999px; margin: 0 2px;
         }
         .gauge-peak {
-          position: absolute; top: 0; height: 100%; background: var(--gold); border-radius: 999px; opacity: 0.75;
+          position: absolute; top: 0; height: 100%; border-radius: 999px; opacity: 0.75;
         }
         .gauge-now {
-          position: absolute; top: -3px; width: 2px; height: 12px; background: var(--wine);
+          position: absolute; top: -3px; width: 2px; height: 12px; background: var(--ink);
         }
         .gauge-now::after {
           content: ""; position: absolute; top: -4px; left: -3px; width: 8px; height: 8px;
-          background: var(--wine); border-radius: 50%;
+          background: var(--ink); border-radius: 50%;
         }
         .gauge-labels {
           display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 6px;
         }
-        .gauge-peak-label { color: var(--gold); font-weight: 700; }
+        .gauge-peak-label { font-weight: 700; }
 
         .taste-tags { display: flex; flex-wrap: wrap; gap: 6px; }
         .taste-tag {
-          font-size: 11px; font-weight: 600; background: rgba(212,167,44,0.15); color: #9A7A1E;
+          font-size: 11px; font-weight: 600;
           border-radius: 999px; padding: 4px 11px;
         }
 
@@ -1321,7 +1334,7 @@ export default function CellarApp() {
         }
 
         .back-price-row { margin-top: 6px; }
-        .price-value { font-size: 15px; font-weight: 800; color: var(--wine); display: block; }
+        .price-value { font-size: 15px; font-weight: 800; color: var(--ink); display: block; }
         .price-note { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
 
         .back-actions {
@@ -1329,14 +1342,14 @@ export default function CellarApp() {
         }
         .btn-open {
           display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1;
-          background: var(--wine); color: #FFF;
-          border: 1px solid var(--wine); border-radius: 999px; padding: 12px 14px; font-size: 12.5px; font-weight: 700;
+          background: var(--ink); color: #FFF;
+          border: 1px solid var(--ink); border-radius: 999px; padding: 12px 14px; font-size: 12.5px; font-weight: 700;
           cursor: pointer; box-shadow: none; height: 44px; box-sizing: border-box; line-height: 1;
         }
-        .btn-open:disabled { background: #D8CFB8; border-color: #D8CFB8; box-shadow: none; cursor: not-allowed; }
+        .btn-open:disabled { background: #EADFC7; border-color: #EADFC7; color: #A89A78; box-shadow: none; cursor: not-allowed; }
         .btn-secondary {
           display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1;
-          background: var(--surface); color: var(--wine); border: 1px solid var(--wine); border-radius: 999px;
+          background: var(--surface); color: var(--ink); border: 1px solid var(--ink); border-radius: 999px;
           padding: 12px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
           height: 44px; box-sizing: border-box; line-height: 1;
         }
@@ -1386,12 +1399,12 @@ export default function CellarApp() {
         }
 
         .bottom-nav {
-          position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 14px; right: 14px; z-index: 30;
+          position: fixed; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); left: 10px; right: 10px; z-index: 30;
           background: rgba(255,255,255,0.65);
           border: 1px solid rgba(255,255,255,0.7);
           border-radius: 999px;
           display: flex; align-items: center; justify-content: space-around;
-          padding: 6px 14px;
+          padding: 10px 14px;
           box-shadow: 0 10px 30px rgba(36,30,20,0.16);
           backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
         }
@@ -1401,13 +1414,13 @@ export default function CellarApp() {
           font-size: 10px; font-weight: 700;
           color: var(--muted);
         }
-        .nav-item-active { color: var(--wine); }
+        .nav-item-active { color: var(--ink); }
         .nav-label { white-space: nowrap; }
         .nav-plus {
           width: 42px; height: 42px; border-radius: 50%;
-          background: var(--wine); color: #FFF;
+          background: var(--ink); color: #FFF;
           border: none; display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 6px 16px rgba(140,74,58,0.35); cursor: pointer; flex-shrink: 0;
+          box-shadow: 0 6px 16px rgba(36,30,20,0.3); cursor: pointer; flex-shrink: 0;
         }
 
         .pairing-view { padding: 14px 16px 20px; }
@@ -1445,7 +1458,7 @@ export default function CellarApp() {
         .pairing-results { margin-top: 22px; }
         .pairing-results-label {
           font-size: 11px; font-weight: 700;
-          text-transform: uppercase; letter-spacing: 0.06em; color: var(--gold); margin-bottom: 10px;
+          text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px;
         }
         .pairing-result-block { margin-bottom: 16px; }
         .pairing-reason {
@@ -1454,22 +1467,40 @@ export default function CellarApp() {
           line-height: 1.4;
         }
         .seed-wine-banner {
-          background: linear-gradient(135deg, var(--wine-light) 0%, var(--wine) 100%); color: #FFF;
-          border-radius: 18px; padding: 15px 17px; margin-bottom: 4px;
-          box-shadow: 0 8px 20px rgba(140,74,58,0.16);
+          background: #FFFFFF; border: 1px solid var(--line); color: var(--ink);
+          border-radius: 24px; padding: 18px; margin-bottom: 4px;
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
         }
-        .seed-wine-name { font-size: 16px; font-weight: 800; }
+        .seed-wine-text { min-width: 0; }
+        .seed-wine-name {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 18px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15;
+        }
         .seed-wine-sub {
-          font-size: 12px; color: rgba(255,255,255,0.75); margin-top: 3px;
+          font-family: -apple-system, system-ui, sans-serif;
+          font-size: 12.5px; color: var(--muted); margin-top: 5px;
+        }
+        .seed-wine-score {
+          display: inline-block; margin-top: 10px; font-size: 12px; font-weight: 800;
+          border-radius: 999px; padding: 4px 11px;
+        }
+        .seed-wine-score-max { font-weight: 500; opacity: 0.6; }
+        .seed-wine-photo {
+          height: 92px; width: auto; max-width: 90px; object-fit: contain; flex-shrink: 0;
+          filter: drop-shadow(0 8px 10px rgba(36,30,20,0.14));
         }
         .dish-card {
-          background: var(--surface); border: 1px solid rgba(255,255,255,0.6); border-radius: 16px; padding: 15px;
+          background: #FFFFFF; border: 1px solid var(--line); border-radius: 20px; padding: 16px 18px;
           margin-bottom: 10px;
-          box-shadow: 0 4px 14px rgba(36,30,20,0.06);
-          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         }
-        .dish-title { font-size: 14px; font-weight: 800; color: var(--wine); margin-bottom: 4px; }
-        .dish-description { font-size: 13px; color: var(--text-soft); line-height: 1.4; }
+        .dish-title {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 5px;
+        }
+        .dish-description {
+          font-family: -apple-system, system-ui, sans-serif;
+          font-size: 12.5px; color: var(--muted); line-height: 1.45;
+        }
         .modal-overlay {
           position: fixed; inset: 0; background: rgba(36,30,20,0.45); z-index: 40;
           display: flex; align-items: flex-end; justify-content: center;
