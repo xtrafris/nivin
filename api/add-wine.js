@@ -84,33 +84,21 @@ async function removeWhiteBackground(buffer) {
     tryPush(x + 1, y); tryPush(x - 1, y); tryPush(x, y + 1); tryPush(x, y - 1);
   }
 
-  // Alfa-masker opbouwen: 0 = doorzichtig (achtergrond), 255 = ondoorzichtig (fles/etiket)
-  const alphaMask = Buffer.alloc(total);
+  // Alfa rechtstreeks in de al-uitgelezen RGBA-pixeldata schrijven — geen
+  // tussenliggende omzettingen naar losse maskers/PNG's meer nodig, want
+  // precies dát veroorzaakte de vervormde/gestreepte foto's hiervoor.
   let minX = width, minY = height, maxX = 0, maxY = 0;
-  for (let p = 0; p < total; p++) {
-    const opaque = !visited[p];
-    alphaMask[p] = opaque ? 255 : 0;
-    if (opaque) {
+  for (let p = 0, i = 0; p < total; p++, i += channels) {
+    if (visited[p]) {
+      data[i + 3] = 0; // doorzichtig
+    } else {
       const x = p % width, y = (p - x) / width;
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
   }
 
-  // Randen van het masker licht vervagen, voor een zachte in plaats van kartelige rand.
-  // Belangrijk: .raw() hier is verplicht — zonder deze regel codeert sharp de uitvoer
-  // stilletjes als PNG in plaats van kale pixeldata, waardoor joinChannel() hieronder
-  // faalt en de hele functie crasht (met als gevolg: nooit een transparante foto).
-  const softMask = await sharp(alphaMask, { raw: { width, height, channels: 1 } })
-    .blur(1.1)
-    .raw()
-    .toBuffer();
-
-  const rgb = await sharp(buffer).ensureAlpha().removeAlpha().raw().toBuffer();
-  const transparent = await sharp(rgb, { raw: { width, height, channels: 3 } })
-    .joinChannel(softMask, { raw: { width, height, channels: 1 } })
-    .png()
-    .toBuffer();
+  const result = sharp(data, { raw: { width, height, channels } });
 
   // Strak bijsnijden op de daadwerkelijke inhoud (geen lege transparante randen)
   if (maxX > minX && maxY > minY) {
@@ -119,9 +107,9 @@ async function removeWhiteBackground(buffer) {
     const top = Math.max(0, minY - pad);
     const w = Math.min(width, maxX + pad) - left;
     const h = Math.min(height, maxY + pad) - top;
-    return sharp(transparent).extract({ left, top, width: w, height: h }).png().toBuffer();
+    return result.extract({ left, top, width: w, height: h }).png().toBuffer();
   }
-  return transparent;
+  return result.png().toBuffer();
 }
 
 async function generatePackshot(photoBase64, mimeType, openaiKey) {
