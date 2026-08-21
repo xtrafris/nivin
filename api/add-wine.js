@@ -40,8 +40,10 @@ async function generatePackshot(photoBase64, mimeType, openaiKey) {
     "ontwerp. Verander niets aan de vorm of grootte van de fles of het etiket.";
 
   const buffer = Buffer.from(photoBase64, "base64");
-  const ext = (mimeType || "image/jpeg").includes("png") ? "png" : "jpg";
-  const blob = new Blob([buffer], { type: mimeType || "image/jpeg" });
+  const mt = (mimeType || "image/jpeg").toLowerCase();
+  const extMap = { "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp", "image/heic": "heic", "image/heif": "heic" };
+  const ext = extMap[mt] || "jpg";
+  const blob = new Blob([buffer], { type: mt });
 
   const form = new FormData();
   form.append("model", "gpt-image-2");
@@ -56,7 +58,11 @@ async function generatePackshot(photoBase64, mimeType, openaiKey) {
     body: form,
   });
   const data = await res.json();
-  if (data.error) throw new Error(`OpenAI-fout: ${data.error.message || JSON.stringify(data.error)}`);
+  if (data.error) {
+    // Volledige foutmelding tonen (niet alleen .message), zodat we bij een volgende
+    // fout precies zien wat OpenAI afkeurt in plaats van een te vage samenvatting.
+    throw new Error(`OpenAI-fout: ${JSON.stringify(data.error)}`);
+  }
 
   const b64 = data?.data?.[0]?.b64_json;
   if (!b64) throw new Error("OpenAI gaf geen afbeelding terug.");
