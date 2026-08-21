@@ -97,13 +97,17 @@ async function removeWhiteBackground(buffer) {
     }
   }
 
-  // Randen van het masker licht vervagen, voor een zachte in plaats van kartelige rand
+  // Randen van het masker licht vervagen, voor een zachte in plaats van kartelige rand.
+  // Belangrijk: .raw() hier is verplicht — zonder deze regel codeert sharp de uitvoer
+  // stilletjes als PNG in plaats van kale pixeldata, waardoor joinChannel() hieronder
+  // faalt en de hele functie crasht (met als gevolg: nooit een transparante foto).
   const softMask = await sharp(alphaMask, { raw: { width, height, channels: 1 } })
     .blur(1.1)
+    .raw()
     .toBuffer();
 
-  const rgb = await sharp(buffer).ensureAlpha().removeAlpha().toBuffer();
-  const transparent = await sharp(rgb)
+  const rgb = await sharp(buffer).ensureAlpha().removeAlpha().raw().toBuffer();
+  const transparent = await sharp(rgb, { raw: { width, height, channels: 3 } })
     .joinChannel(softMask, { raw: { width, height, channels: 1 } })
     .png()
     .toBuffer();

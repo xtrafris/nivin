@@ -1351,7 +1351,7 @@ export default function CellarApp() {
         .front-score-label-muted { color: var(--muted); }
 
         .front-bottle-col {
-          position: absolute; left: 0; right: 6px; top: 44px; bottom: 20px;
+          position: absolute; left: 0; right: 20px; top: 44px; bottom: 20px;
           z-index: 1; display: flex; align-items: stretch; justify-content: flex-end;
         }
         .bottle-photo {
