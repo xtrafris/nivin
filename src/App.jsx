@@ -126,6 +126,16 @@ function interpolateTable(table, x) {
   return x;
 }
 
+function parseAiJson(text) {
+  let clean = text.replace(/```json|```/g, "").trim();
+  const firstBrace = clean.indexOf("{");
+  const lastBrace = clean.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    clean = clean.slice(firstBrace, lastBrace + 1);
+  }
+  return JSON.parse(clean);
+}
+
 function normalizeRating(key, val) {
   if (typeof val !== "number" || isNaN(val)) return null;
   if (key === "vivino") return interpolateTable(VIVINO_TABLE, val);
@@ -297,8 +307,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
       if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const parsed = parseAiJson(text);
       const updates = {};
       if (parsed.ratings && typeof parsed.ratings === "object") updates.ratings = { ...w.ratings, ...parsed.ratings };
       if (parsed.priceValue) updates.priceValue = parsed.priceValue;
@@ -333,7 +342,9 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
   const origin = [w.region, w.country].filter(Boolean).join(", ");
 
   return (
+    <>
     <div ref={cardRef} className="card-scene" onClick={() => onExpand(w.id)}>
+      <div className="card-perspective">
       <div className={"card-flip" + (expanded ? " is-flipped" : "")}>
         {/* ---------- FRONT — poster: bottle photo only if available ---------- */}
         <div className={"card-face card-front" + (empty ? " is-empty" : "")}>
@@ -482,9 +493,11 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
           </div>
         </div>
       </div>
+        </div>
+      </div>
 
       {showQtyModal && (
-        <div className="modal-overlay modal-overlay-center" onClick={(e) => { e.stopPropagation(); setShowQtyModal(false); }}>
+        <div className="modal-overlay modal-overlay-center" onClick={() => setShowQtyModal(false)}>
           <div className="modal qty-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span>Voorraad aanpassen</span>
@@ -517,7 +530,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -570,8 +583,7 @@ Kies uit BOVENSTAANDE LIJST de 3 tot 5 best passende wijnen (gebruik uitsluitend
       if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const parsed = parseAiJson(text);
       const byId = Object.fromEntries(available.map(w => [w.id, w]));
       const resolved = parsed
         .filter(p => byId[p.id])
@@ -617,8 +629,7 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
       if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const parsed = parseAiJson(text);
       setDishSuggestions(parsed);
       setDishStatus(parsed.length > 0 ? "done" : "error");
     } catch (e) {
@@ -785,6 +796,7 @@ export default function CellarApp() {
   const [photoAddError, setPhotoAddError] = useState("");
   const [photoAddResult, setPhotoAddResult] = useState(null);
   const cameraInputRef = useRef(null);
+
 
   useEffect(() => {
     if (!saveError) return;
@@ -1160,11 +1172,14 @@ export default function CellarApp() {
         .wine-list { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 10px; }
 
         .card-scene {
-          perspective: 1600px;
-          -webkit-perspective: 1600px;
           height: 480px;
           cursor: pointer;
           scroll-margin-top: 80px;
+        }
+        .card-perspective {
+          height: 100%;
+          perspective: 1600px;
+          -webkit-perspective: 1600px;
         }
         .card-flip {
           position: relative; width: 100%; height: 100%;
@@ -1508,12 +1523,12 @@ export default function CellarApp() {
         }
         .modal-overlay-center { align-items: center; padding: 0 16px; }
         .modal {
-          background: rgba(248,243,232,0.95); width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
-          border-radius: 26px 26px 0 0; padding: 20px 18px 26px;
-          backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-          box-shadow: 0 -10px 40px rgba(36,30,20,0.2);
+          background: #FFFFFF; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+          border: 1px solid var(--line);
+          border-radius: 24px 24px 0 0; padding: 20px 18px 26px;
+          box-shadow: 0 -10px 40px rgba(36,30,20,0.14);
         }
-        .qty-modal { max-width: 340px; border-radius: 26px; box-shadow: 0 20px 50px rgba(36,30,20,0.25); }
+        .qty-modal { max-width: 340px; border-radius: 24px; box-shadow: 0 20px 50px rgba(36,30,20,0.18); }
         .modal-header {
           display: flex; align-items: center; justify-content: space-between;
           font-size: 17px; font-weight: 700; margin-bottom: 6px;

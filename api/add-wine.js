@@ -87,8 +87,20 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
   if (data.error) throw new Error(`Claude-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
 
   const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-  const clean = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(clean);
+  let clean = text.replace(/```json|```/g, "").trim();
+  // Als Claude toch wat uitleg vóór of na het JSON-blok zet, pak alleen het stuk
+  // tussen de eerste { en de laatste } — dat is veel robuuster dan alleen
+  // markdown-backticks strippen.
+  const firstBrace = clean.indexOf("{");
+  const lastBrace = clean.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    clean = clean.slice(firstBrace, lastBrace + 1);
+  }
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    throw new Error(`Kon het antwoord niet als JSON lezen: ${String(e.message || e)}`);
+  }
 }
 
 export default async function handler(req, res) {
