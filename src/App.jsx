@@ -1351,12 +1351,11 @@ export default function CellarApp() {
         .front-score-label-muted { color: var(--muted); }
 
         .front-bottle-col {
-          position: absolute; left: 0; right: 20px; top: 44px; bottom: 20px;
-          z-index: 1; display: flex; align-items: stretch; justify-content: flex-end;
+          position: absolute; top: 0; right: 0; bottom: 0; left: 58%;
+          z-index: 1; overflow: hidden; border-radius: 0 24px 24px 0;
         }
         .bottle-photo {
-          height: 100%; width: auto; max-width: 82%; object-fit: contain;
-          filter: drop-shadow(0 16px 18px rgba(60,45,20,0.16));
+          width: 100%; height: 100%; object-fit: cover; display: block;
         }
 
         /* ---- Back: detail sheet ---- */

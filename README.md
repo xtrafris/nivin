@@ -14,15 +14,11 @@ telefoon, laptop en elk ander apparaat.
 3. **Wijn toevoegen via foto** (nieuw): tik op "+" → "Foto maken" → de camera opent,
    je maakt een foto van het etiket. Op de achtergrond (`/api/add-wine.js`) gebeurt dan
    automatisch:
-   - Als je een `OPENAI_API_KEY` hebt ingesteld: OpenAI krijgt je foto plus een
-     "masker" mee dat zegt "raak de fles en het etiket niet aan, maak alleen de
-     achtergrond mooi en professioneel" — voor consistente, professionele belichting
-     bij elke wijn. Dit masker is bij dit AI-model een sterke aanwijzing, geen 100%
-     harde garantie.
-   - **Zonder** die sleutel (of als de AI-stap onverhoopt mislukt): de achtergrond
-     wordt puur mechanisch transparant gemaakt (`sharp`, geen AI) — zonder ook maar
-     één pixel van de fles of het etiket te veranderen. Iets minder gepolijst qua
-     achtergrond, maar 100% gegarandeerd correct etiket.
+   - Als je een `OPENAI_API_KEY` hebt ingesteld: OpenAI genereert een volledige,
+     professionele studio-packshot van je foto (dezelfde aanpak/prompt die ook
+     handmatig goede resultaten gaf) — deze foto verschijnt direct, met zijn eigen
+     nette achtergrond, rechts op de kaart. Geen sleutel ingesteld? Dan blijft de
+     kaart gewoon zonder foto, de rest werkt onveranderd door.
    - **Claude** leest het etiket, zoekt de wijn op (scores, prijs, proefnotities) via
      web-search.
    - Staat dezelfde wijn (naam + producent + jaargang, exact) al in je kelder, dan
@@ -37,10 +33,9 @@ telefoon, laptop en elk ander apparaat.
 - Een Anthropic API-sleutel via console.anthropic.com (Settings → API Keys) —
   let op: dit is een *betaalde* sleutel, los van je Claude.ai-abonnement, met lage
   kosten per gebruik voor persoonlijk gebruik.
-- (Optioneel, voor mooiere/consistentere flesfoto's) een OpenAI API-sleutel via
-  platform.openai.com (Settings → API keys) — nieuwe accounts krijgen $5 gratis
-  tegoed. Zonder deze sleutel werkt alles nog steeds, dan is de flesfoto puur
-  bijgesneden zonder AI-herstyling.
+- (Optioneel, voor de flesfoto's) een OpenAI API-sleutel via platform.openai.com
+  (Settings → API keys) — nieuwe accounts krijgen $5 gratis tegoed. Zonder deze
+  sleutel werkt alles nog steeds, dan blijft de kaart zonder foto.
 
 ## Stap voor stap
 

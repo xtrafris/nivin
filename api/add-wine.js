@@ -1,25 +1,22 @@
 // Vercel serverless function. Runs op de server, nooit in de browser.
-// Combineert drie stappen voor het toevoegen van een wijn via foto:
+// Combineert twee stappen voor het toevoegen van een wijn via foto:
 //
-// 1. De foto wordt geanalyseerd om de fles van de achtergrond te scheiden
-//    (sharp + eigen segmentatie, geen AI).
-// 2. OpenAI (OPENAI_API_KEY) krijgt de ORIGINELE foto plus een "masker" mee:
-//    dat masker zegt letterlijk "raak de fles en het etiket niet aan, maak
-//    alleen de achtergrond mooi en professioneel". Zo krijg je consistente,
-//    professionele belichting/achtergrond bij elke wijn, terwijl het etiket
-//    zoveel mogelijk intact blijft — al is dit masker bij dit AI-model een
-//    sterke aanwijzing, geen 100% harde garantie (zie ons gesprek hierover).
-//    Lukt deze stap niet (geen sleutel, API-fout, etc.), dan valt de app terug
-//    op optie 1: pure achtergrond-verwijdering zonder AI, met gegarandeerd
-//    ongewijzigd etiket.
-// 3. Claude (ANTHROPIC_API_KEY) leest het etiket op de foto en zoekt via
-//    web-search de wijn op: naam, producent, jaargang, streek, druiven,
+// 1. OpenAI (OPENAI_API_KEY) genereert een volledige, professionele packshot
+//    op basis van je foto — met dezelfde prompt die je zelf handmatig gebruikt
+//    en waarvan je hebt gezien dat die goede, correcte resultaten geeft. Deze
+//    packshot (inclusief zijn eigen nette witte achtergrond) wordt direct als
+//    foto op de kaart getoond — er wordt dus NIET geprobeerd om de achtergrond
+//    achteraf transparant te maken of uit te knippen. Dat bleek keer op keer
+//    problemen te geven (rare overgangen, verminkte/gedraaide foto's); door de
+//    packshot gewoon als volwaardige foto te tonen (met object-fit: cover in
+//    een vaste kaart-kolom) is er niets meer om mis te laten gaan.
+// 2. Claude (ANTHROPIC_API_KEY) leest het etiket op de ORIGINELE foto en zoekt
+//    via web-search de wijn op: naam, producent, jaargang, streek, druiven,
 //    scores, prijs en proefnotities.
 //
 // Beide sleutels worden hier server-side gebruikt en nooit naar de browser
 // gestuurd. Zet ze in je Vercel-projectinstellingen (Environment Variables).
-
-import sharp from "sharp";
+// Zonder OPENAI_API_KEY werkt alles nog gewoon, dan blijft de kaart zonder foto.
 
 export const config = {
   api: {
@@ -31,151 +28,24 @@ export const config = {
 const RATING_SOURCES_HINT =
   "Vivino, CellarTracker, Wine Advocate, Wine Spectator, Decanter, Vinous, James Suckling, Hamersma";
 
-// Bepaalt per pixel of hij "achtergrond" is: ofwel dicht bij de daadwerkelijke
-// hoekkleur van de foto, ofwel zowel LICHT als NEUTRAAL GRIJS (weinig
-// kleurverzadiging) — dat vangt een egale achtergrond én een zachte schaduw,
-// terwijl de veel donkerdere en/of kleurrijkere fles en het etiket met rust
-// blijven. Vloed-vult daarna vanaf de randen, zodat een wit etiket (omsloten
-// door de fles) nooit meegepakt wordt, ook al is het zelf licht van kleur.
-async function segmentBackground(buffer) {
-  const { data, info } = await sharp(buffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const { width, height, channels } = info;
-  const total = width * height;
-
-  const sampleCorner = (x, y) => {
-    const i = (y * width + x) * channels;
-    return [data[i], data[i + 1], data[i + 2]];
-  };
-  const corners = [sampleCorner(2, 2), sampleCorner(width - 3, 2), sampleCorner(2, height - 3), sampleCorner(width - 3, height - 3)];
-  const refColor = [0, 1, 2].map(c => corners.reduce((s, p) => s + p[c], 0) / corners.length);
-
-  const bgLike = new Uint8Array(total);
-  const refDistThreshold = 40;
-  const minBrightness = 120;
-  const maxChroma = 34;
-  for (let p = 0, i = 0; p < total; p++, i += channels) {
-    const r = data[i], g = data[i + 1], b = data[i + 2];
-    const refDist = Math.sqrt((r - refColor[0]) ** 2 + (g - refColor[1]) ** 2 + (b - refColor[2]) ** 2);
-    const brightness = (r + g + b) / 3;
-    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-    bgLike[p] = (refDist < refDistThreshold || (brightness > minBrightness && chroma < maxChroma)) ? 1 : 0;
-  }
-
-  const visited = new Uint8Array(total);
-  const queue = new Int32Array(total);
-  let qLen = 0;
-  const tryPush = (x, y) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return;
-    const p = y * width + x;
-    if (visited[p] || !bgLike[p]) return;
-    visited[p] = 1;
-    queue[qLen++] = p;
-  };
-  for (let x = 0; x < width; x++) { tryPush(x, 0); tryPush(x, height - 1); }
-  for (let y = 0; y < height; y++) { tryPush(0, y); tryPush(width - 1, y); }
-  let head = 0;
-  while (head < qLen) {
-    const p = queue[head++];
-    const x = p % width, y = (p - x) / width;
-    tryPush(x + 1, y); tryPush(x - 1, y); tryPush(x, y + 1); tryPush(x, y - 1);
-  }
-
-  return { data, width, height, channels, visited };
-}
-
-// Maakt de achtergrond van de foto transparant, met behoud van élke pixel van
-// de fles en het etiket zelf. Geen AI, dus 100% garantie dat het etiket klopt.
-async function extractBottlePhoto(buffer) {
-  const { data, width, height, channels, visited } = await segmentBackground(buffer);
-  const total = width * height;
-
-  let minX = width, minY = height, maxX = 0, maxY = 0;
-  for (let p = 0, i = 0; p < total; p++, i += channels) {
-    if (visited[p]) {
-      data[i + 3] = 0; // doorzichtig
-    } else {
-      const x = p % width, y = (p - x) / width;
-      if (x < minX) minX = x; if (x > maxX) maxX = x;
-      if (y < minY) minY = y; if (y > maxY) maxY = y;
-    }
-  }
-
-  const result = sharp(data, { raw: { width, height, channels } });
-  if (maxX > minX && maxY > minY) {
-    const pad = 6;
-    const left = Math.max(0, minX - pad);
-    const top = Math.max(0, minY - pad);
-    const w = Math.min(width, maxX + pad) - left;
-    const h = Math.min(height, maxY + pad) - top;
-    return result.extract({ left, top, width: w, height: h }).png().toBuffer();
-  }
-  return result.png().toBuffer();
-}
-
-// Bouwt een masker-PNG voor OpenAI: doorzichtig (alfa 0) = "hier mag je de
-// achtergrond opnieuw genereren", ondoorzichtig (alfa 255) = "dit — de fles
-// en het etiket — met rust laten". Er zit een kleine bufferzone (paar pixels)
-// rondom de fles die óók bewerkbaar is, zodat de AI een vloeiende overgang
-// kan maken in plaats van tegen een haarscherpe rand aan te lopen.
-async function buildEditMask(buffer, bufferPx = 10) {
-  const { width, height, visited } = await segmentBackground(buffer);
-  const total = width * height;
-
-  const dist = new Int16Array(total).fill(-1);
-  const queue = new Int32Array(total);
-  let qLen = 0;
-  for (let p = 0; p < total; p++) {
-    if (visited[p]) { dist[p] = 0; queue[qLen++] = p; }
-  }
-  const editable = Uint8Array.from(visited);
-  let head = 0;
-  while (head < qLen) {
-    const p = queue[head++];
-    if (dist[p] >= bufferPx) continue;
-    const x = p % width, y = (p - x) / width;
-    const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
-    for (const [nx, ny] of neighbors) {
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      const np = ny * width + nx;
-      if (dist[np] === -1) {
-        dist[np] = dist[p] + 1;
-        editable[np] = 1;
-        queue[qLen++] = np;
-      }
-    }
-  }
-
-  // Rechtstreeks een RGBA-buffer opbouwen (kleur is irrelevant, alleen alfa
-  // telt voor OpenAI) — geen colourspace-omzettingen die weer mis kunnen gaan.
-  const maskRgba = Buffer.alloc(total * 4, 255); // wit, alfa nog te zetten
-  for (let p = 0; p < total; p++) {
-    maskRgba[p * 4 + 3] = editable[p] ? 0 : 255;
-  }
-  return sharp(maskRgba, { raw: { width, height, channels: 4 } }).png().toBuffer();
-}
-
-async function generateStyledPackshot(photoBase64, mimeType, openaiKey) {
-  const buffer = Buffer.from(photoBase64, "base64");
-  const mask = await buildEditMask(buffer);
-
-  const ext = (mimeType || "image/jpeg").includes("png") ? "png" : "jpg";
-  const imageBlob = new Blob([buffer], { type: mimeType || "image/jpeg" });
-  const maskBlob = new Blob([mask], { type: "image/png" });
+async function generatePackshot(photoBase64, mimeType, openaiKey) {
+  if (!openaiKey) return null;
 
   const prompt =
-    "Vervang alleen de achtergrond door een professionele, vlekkeloze witte studio-achtergrond " +
-    "en -ondergrond, met zachte diffuse belichting en een subtiele contactschaduw, zoals bij " +
-    "high-end e-commerce productfotografie. Laat de fles en het etiket exact zoals ze zijn.";
+    "Professionele studio packshot van deze wijnfles, perfect gecentreerd, op een vlekkeloze, " +
+    "heldere witte achtergrond en ondergrond. Zachte, diffuse belichting om reflecties te " +
+    "minimaliseren en het etiket scherp weer te geven. 8k resolutie, fotorealistisch.";
+
+  const buffer = Buffer.from(photoBase64, "base64");
+  const ext = (mimeType || "image/jpeg").includes("png") ? "png" : "jpg";
+  const blob = new Blob([buffer], { type: mimeType || "image/jpeg" });
 
   const form = new FormData();
   form.append("model", "gpt-image-1");
-  form.append("image", imageBlob, `bottle.${ext}`);
-  form.append("mask", maskBlob, "mask.png");
+  form.append("image", blob, `bottle.${ext}`);
   form.append("prompt", prompt);
   form.append("quality", "high");
+  form.append("size", "1024x1536"); // staand formaat — past van nature beter bij een fles dan vierkant
 
   const res = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
@@ -188,27 +58,7 @@ async function generateStyledPackshot(photoBase64, mimeType, openaiKey) {
   const b64 = data?.data?.[0]?.b64_json;
   if (!b64) throw new Error("OpenAI gaf geen afbeelding terug.");
 
-  // De AI-achtergrond nu ook weer transparant maken, voor naadloze weergave op de kaart.
-  const styledBuffer = Buffer.from(b64, "base64");
-  return extractBottlePhoto(styledBuffer);
-}
-
-async function generatePackshot(photoBase64, mimeType, openaiKey) {
-  if (openaiKey) {
-    try {
-      const finalBuffer = await generateStyledPackshot(photoBase64, mimeType, openaiKey);
-      return { base64: finalBuffer.toString("base64"), mimeType: "image/png" };
-    } catch {
-      // AI-herstyling mislukt? Val terug op de veilige, garandeerd-correcte weg hieronder.
-    }
-  }
-  const buffer = Buffer.from(photoBase64, "base64");
-  try {
-    const finalBuffer = await extractBottlePhoto(buffer);
-    return { base64: finalBuffer.toString("base64"), mimeType: "image/png" };
-  } catch {
-    return { base64: photoBase64, mimeType: mimeType || "image/jpeg" };
-  }
+  return { base64: b64, mimeType: "image/png" };
 }
 
 async function identifyAndEnrichWine(photoBase64, mimeType, anthropicKey) {
@@ -272,7 +122,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const openaiKey = process.env.OPENAI_API_KEY; // optioneel — zonder deze sleutel valt de app terug op pure achtergrond-verwijdering
+  const openaiKey = process.env.OPENAI_API_KEY; // optioneel — zonder deze sleutel blijft de kaart zonder foto
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) {
     res.status(500).json({
@@ -296,7 +146,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       wine: wineInfo,
-      packshot: `data:${packshot.mimeType};base64,${packshot.base64}`,
+      packshot: packshot ? `data:${packshot.mimeType};base64,${packshot.base64}` : null,
     });
   } catch (err) {
     res.status(500).json({ error: { message: String((err && err.message) || err) } });
