@@ -914,7 +914,9 @@ export default function CellarApp() {
       const existing = findExistingWine(info);
 
       if (existing) {
-        const next = wines.map(w => w.id === existing.id ? { ...w, quantity: (w.quantity || 0) + 1 } : w);
+        const next = wines.map(w => w.id === existing.id
+          ? { ...w, quantity: (w.quantity || 0) + 1, bottlePhoto: data.packshot || w.bottlePhoto }
+          : w);
         await persist(next);
         setPhotoAddResult({ mode: "matched", wineName: displayName(existing) });
       } else {
@@ -1774,7 +1776,7 @@ export default function CellarApp() {
             </div>
             <p className="modal-hint">
               {photoAddResult.mode === "matched"
-                ? `"${photoAddResult.wineName}" stond al in je kelder — het aantal is met 1 opgehoogd.`
+                ? `"${photoAddResult.wineName}" stond al in je kelder — het aantal is met 1 opgehoogd en de foto is vervangen door deze nieuwe packshot.`
                 : `"${photoAddResult.wineName}" is toegevoegd aan je kelder, inclusief productfoto en gevonden gegevens.`}
             </p>
             <button className="btn-open" style={{ width: "100%", justifyContent: "center" }} onClick={() => setPhotoAddResult(null)}>
