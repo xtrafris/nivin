@@ -932,7 +932,9 @@ export default function CellarApp() {
           type: info.type || "red",
           quantity: 1,
           purchasePrice: null, currency: "EUR", bottleSize: null, storage: "assumed_ideal",
-          drinkingWindowStatus: null, drinkFrom: null, drinkUntil: null, peakFrom: null, peakUntil: null,
+          drinkingWindowStatus: null,
+          drinkFrom: info.drinkFrom || null, drinkUntil: info.drinkUntil || null,
+          peakFrom: info.peakFrom || null, peakUntil: info.peakUntil || null,
           score: null, body: null, sweetness: null, tannin: null, acidity: null, alcohol: null,
           ratings: info.ratings || {}, priceValue: info.priceValue || null, priceNote: info.priceNote || "",
           description: info.description || "", tastingNotes: info.tastingNotes || "",
@@ -1260,11 +1262,11 @@ export default function CellarApp() {
         .front-score-label-muted { color: var(--muted); }
 
         .front-bottle-col {
-          position: absolute; left: 0; right: -14px; top: 44px; bottom: 20px;
+          position: absolute; left: 0; right: -28px; top: 44px; bottom: 20px;
           z-index: 1; display: flex; align-items: stretch; justify-content: flex-end;
         }
         .bottle-photo {
-          height: 100%; width: auto; max-width: 90%; object-fit: contain;
+          height: 100%; width: auto; max-width: 96%; object-fit: contain;
           filter: drop-shadow(0 16px 18px rgba(60,45,20,0.16));
         }
 

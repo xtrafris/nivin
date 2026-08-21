@@ -38,7 +38,7 @@ async function removeWhiteBackground(buffer) {
   const total = width * height;
 
   const bgLike = new Uint8Array(total);
-  const threshold = 32;
+  const threshold = 50;
   for (let p = 0, i = 0; p < total; p++, i += channels) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
     const dist = Math.sqrt((255 - r) ** 2 + (255 - g) ** 2 + (255 - b) ** 2);
@@ -144,15 +144,17 @@ async function generatePackshot(photoBase64, mimeType, openaiKey) {
 }
 
 async function identifyAndEnrichWine(photoBase64, mimeType, anthropicKey) {
-  const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Op de bijgevoegde foto staat een wijnetiket.
+  const currentYear = new Date().getFullYear();
+  const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Op de bijgevoegde foto staat een wijnetiket. Het huidige jaar is ${currentYear}.
 
 Stap 1: Lees het etiket nauwkeurig en identificeer de wijn: naam, producent/wijnhuis, jaargang, land, streek, druivenras(sen), type (red/white/rose/sparkling/orange).
 Stap 2: Zoek op internet naar scores van deze bronnen (alleen invullen als je een score écht hebt gevonden, nooit verzinnen): ${RATING_SOURCES_HINT}. Vivino als getal 1-5 met 1 decimaal, andere bronnen als score op 100.
 Stap 3: Zoek de huidige winkelprijs, bij voorkeur bij een Nederlandse of Belgische wijnhandel.
 Stap 4: Schrijf een korte, feitelijke omschrijving van het wijnhuis (2-3 zinnen) en beknopte proefnotities (max. 5 regels), in het Nederlands.
+Stap 5: Schat een realistisch drinkvenster in — vanaf welk jaar tot welk jaar deze wijn goed te drinken is, en de piekperiode daarbinnen. Baseer dit op het type wijn, de jaargang, de druif(ven) en de stijl/kwaliteit (bijv. een lichte, jonge witte wijn heeft een korter venster dan een geconcentreerde rode bewaarwijn of een Grosses Gewächs). Vul dit altijd in, ook als je het moet inschatten op basis van algemene kennis over dit type wijn — laat dit nooit leeg.
 
-Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null voor velden die je niet kunt vaststellen, verzin nooit scores of prijzen):
-{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "..."}`;
+Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null voor velden die je niet kunt vaststellen, verzin nooit scores of prijzen — het drinkvenster in stap 5 mag wel een onderbouwde inschatting zijn):
+{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030}`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
