@@ -44,7 +44,7 @@ async function generatePackshot(photoBase64, mimeType, openaiKey) {
   const blob = new Blob([buffer], { type: mimeType || "image/jpeg" });
 
   const form = new FormData();
-  form.append("model", "gpt-image-1");
+  form.append("model", "gpt-image-2");
   form.append("image", blob, `bottle.${ext}`);
   form.append("prompt", prompt);
   form.append("quality", "high");

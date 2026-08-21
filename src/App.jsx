@@ -1353,8 +1353,8 @@ export default function CellarApp() {
         .front-bottle-col {
           position: absolute; top: 0; right: 0; bottom: 0; left: 58%;
           z-index: 1; overflow: hidden; border-radius: 0 24px 24px 0;
-          -webkit-mask-image: linear-gradient(to right, transparent 0, #000 90px);
-          mask-image: linear-gradient(to right, transparent 0, #000 90px);
+          -webkit-mask-image: linear-gradient(to right, transparent 0, #000 30px);
+          mask-image: linear-gradient(to right, transparent 0, #000 30px);
         }
         .bottle-photo {
           width: 100%; height: 100%; object-fit: cover; display: block;
