@@ -29,10 +29,12 @@ const RATING_SOURCES_HINT =
 // vloed-vul-techniek als eerder handmatig toegepast: alleen de achtergrond die
 // vanaf de randen bereikbaar is wordt transparant gemaakt, zodat een wit etiket
 // (dat omsloten wordt door de fles) intact blijft in plaats van ook doorzichtig
-// te worden. Een pixel telt als "achtergrond" als hij zowel LICHT als NEUTRAAL
-// GRIJS is (weinig kleurverzadiging) — dat vangt zowel de witte achtergrond als
-// de zachte grijze schaduw, terwijl de veel donkerdere en/of kleurrijkere fles
-// en het etiket met rust worden gelaten.
+// te worden. Een pixel telt als "achtergrond" als hij ofwel dicht bij de
+// daadwerkelijke hoekkleur van de foto ligt (in plaats van aan te nemen dat de
+// achtergrond exact zuiver wit is), ofwel zowel LICHT als NEUTRAAL GRIJS is
+// (weinig kleurverzadiging) — dat vangt zowel de studio-achtergrond als de
+// zachte schaduw, terwijl de veel donkerdere en/of kleurrijkere fles en het
+// etiket met rust worden gelaten.
 async function removeWhiteBackground(buffer) {
   const { data, info } = await sharp(buffer)
     .ensureAlpha()
@@ -41,14 +43,25 @@ async function removeWhiteBackground(buffer) {
   const { width, height, channels } = info;
   const total = width * height;
 
+  // Meet de daadwerkelijke achtergrondkleur van déze foto op, in plaats van
+  // zuiver wit aan te nemen — vangt ook een lichtjes afwijkende studiotint.
+  const sampleCorner = (x, y) => {
+    const i = (y * width + x) * channels;
+    return [data[i], data[i + 1], data[i + 2]];
+  };
+  const corners = [sampleCorner(2, 2), sampleCorner(width - 3, 2), sampleCorner(2, height - 3), sampleCorner(width - 3, height - 3)];
+  const refColor = [0, 1, 2].map(c => corners.reduce((s, p) => s + p[c], 0) / corners.length);
+
   const bgLike = new Uint8Array(total);
-  const minBrightness = 150; // hoe licht een pixel minimaal moet zijn
-  const maxChroma = 26;      // hoe neutraal/grijs (weinig kleurverschil tussen r/g/b)
+  const refDistThreshold = 40; // dicht bij de gemeten achtergrondkleur
+  const minBrightness = 120;   // ...óf gewoon licht genoeg (vangt de schaduw)
+  const maxChroma = 34;        // ...én neutraal/grijs (geen kleurrijke flesinhoud)
   for (let p = 0, i = 0; p < total; p++, i += channels) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
+    const refDist = Math.sqrt((r - refColor[0]) ** 2 + (g - refColor[1]) ** 2 + (b - refColor[2]) ** 2);
     const brightness = (r + g + b) / 3;
     const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-    bgLike[p] = (brightness > minBrightness && chroma < maxChroma) ? 1 : 0;
+    bgLike[p] = (refDist < refDistThreshold || (brightness > minBrightness && chroma < maxChroma)) ? 1 : 0;
   }
 
   // Vloed-vullen vanaf alle randpixels, alleen door achtergrond-achtige pixels heen
