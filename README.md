@@ -14,8 +14,15 @@ telefoon, laptop en elk ander apparaat.
 3. **Wijn toevoegen via foto** (nieuw): tik op "+" → "Foto maken" → de camera opent,
    je maakt een foto van het etiket. Op de achtergrond (`/api/add-wine.js`) gebeurt dan
    automatisch:
-   - **OpenAI (GPT Image)** zet de foto om in een professionele productfoto (vrijstaande
-     fles, neutrale achtergrond), met het etiket exact zoals gefotografeerd.
+   - Als je een `OPENAI_API_KEY` hebt ingesteld: OpenAI krijgt je foto plus een
+     "masker" mee dat zegt "raak de fles en het etiket niet aan, maak alleen de
+     achtergrond mooi en professioneel" — voor consistente, professionele belichting
+     bij elke wijn. Dit masker is bij dit AI-model een sterke aanwijzing, geen 100%
+     harde garantie.
+   - **Zonder** die sleutel (of als de AI-stap onverhoopt mislukt): de achtergrond
+     wordt puur mechanisch transparant gemaakt (`sharp`, geen AI) — zonder ook maar
+     één pixel van de fles of het etiket te veranderen. Iets minder gepolijst qua
+     achtergrond, maar 100% gegarandeerd correct etiket.
    - **Claude** leest het etiket, zoekt de wijn op (scores, prijs, proefnotities) via
      web-search.
    - Staat dezelfde wijn (naam + producent + jaargang, exact) al in je kelder, dan
@@ -30,8 +37,10 @@ telefoon, laptop en elk ander apparaat.
 - Een Anthropic API-sleutel via console.anthropic.com (Settings → API Keys) —
   let op: dit is een *betaalde* sleutel, los van je Claude.ai-abonnement, met lage
   kosten per gebruik voor persoonlijk gebruik.
-- Een OpenAI API-sleutel via platform.openai.com (Settings → API keys) — nieuwe
-  accounts krijgen $5 gratis tegoed, geen creditcard nodig om te starten.
+- (Optioneel, voor mooiere/consistentere flesfoto's) een OpenAI API-sleutel via
+  platform.openai.com (Settings → API keys) — nieuwe accounts krijgen $5 gratis
+  tegoed. Zonder deze sleutel werkt alles nog steeds, dan is de flesfoto puur
+  bijgesneden zonder AI-herstyling.
 
 ## Stap voor stap
 
@@ -71,7 +80,7 @@ voeg deze drie variabelen toe:
 | VITE_SUPABASE_URL | je Supabase Project URL |
 | VITE_SUPABASE_ANON_KEY | je Supabase anon public key |
 | ANTHROPIC_API_KEY | je Anthropic API-sleutel |
-| OPENAI_API_KEY | je OpenAI API-sleutel |
+| OPENAI_API_KEY | (optioneel) je OpenAI API-sleutel, voor mooiere flesfoto's |
 
 Klik daarna op **Deploy**. Na een minuutje krijg je een live URL, bijvoorbeeld
 `mijn-wijn.vercel.app`.
