@@ -34,7 +34,10 @@ async function generatePackshot(photoBase64, mimeType, openaiKey) {
   const prompt =
     "Professionele studio packshot van deze wijnfles, perfect gecentreerd, op een vlekkeloze, " +
     "heldere witte achtergrond en ondergrond. Zachte, diffuse belichting om reflecties te " +
-    "minimaliseren en het etiket scherp weer te geven. 8k resolutie, fotorealistisch.";
+    "minimaliseren en het etiket scherp weer te geven. 8k resolutie, fotorealistisch. " +
+    "Neem de vorm en verhoudingen van de fles exact over zoals op de originele foto, en het " +
+    "etiket exact zoals het is — zelfde formaat, zelfde positie op de fles, zelfde tekst en " +
+    "ontwerp. Verander niets aan de vorm of grootte van de fles of het etiket.";
 
   const buffer = Buffer.from(photoBase64, "base64");
   const ext = (mimeType || "image/jpeg").includes("png") ? "png" : "jpg";
