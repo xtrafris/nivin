@@ -136,6 +136,22 @@ function parseAiJson(text) {
   return JSON.parse(clean);
 }
 
+// Leest een fetch-response veilig als JSON. Bij een niet-JSON-antwoord (zoals
+// een Vercel-tijdslimiet-foutpagina) geeft dit een leesbare fout terug in plaats
+// van dat response.json() een cryptische Safari-fout gooit ("The string did not
+// match the expected pattern") die de échte oorzaak verbergt.
+async function safeJsonResponse(response) {
+  const rawText = await response.text();
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    throw new Error(
+      `Onverwacht antwoord van de server (status ${response.status}). ` +
+      `Dit gebeurt meestal bij een timeout op Vercel. Details: ${rawText.slice(0, 300) || "(leeg antwoord)"}`
+    );
+  }
+}
+
 function normalizeRating(key, val) {
   if (typeof val !== "number" || isNaN(val)) return null;
   if (key === "vivino") return interpolateTable(VIVINO_TABLE, val);
@@ -339,7 +355,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
           tools: [{ type: "web_search_20250305", name: "web_search" }],
         }),
       });
-      const data = await response.json();
+      const data = await safeJsonResponse(response);
       if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -633,7 +649,7 @@ Kies uit BOVENSTAANDE LIJST de 3 tot 5 best passende wijnen (gebruik uitsluitend
           messages: [{ role: "user", content: prompt }],
         }),
       });
-      const data = await response.json();
+      const data = await safeJsonResponse(response);
       if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -679,7 +695,7 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
           messages: [{ role: "user", content: prompt }],
         }),
       });
-      const data = await response.json();
+      const data = await safeJsonResponse(response);
       if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -985,7 +1001,7 @@ export default function CellarApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoBase64: base64, mimeType }),
       });
-      const data = await response.json();
+      const data = await safeJsonResponse(response);
       if (data.error) throw new Error(data.error.message || "Onbekende fout");
 
       const info = data.wine || {};
