@@ -14,6 +14,7 @@ export const config = {
   api: {
     bodyParser: { sizeLimit: "12mb" }, // ruimte voor een foto in base64
   },
+  maxDuration: 60, // standaard is 10s op Vercel's gratis plan — te kort voor twee AI-aanroepen
 };
 
 const RATING_SOURCES_HINT =

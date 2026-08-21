@@ -3,6 +3,10 @@
 // which is read from the ANTHROPIC_API_KEY environment variable you set
 // in your Vercel project settings (never commit the key itself to git).
 
+export const config = {
+  maxDuration: 60, // standaard is 10s op Vercel's gratis plan — te kort bij web-search
+};
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: { message: "Method not allowed" } });
