@@ -24,11 +24,15 @@ export const config = {
 const RATING_SOURCES_HINT =
   "Vivino, CellarTracker, Wine Advocate, Wine Spectator, Decanter, Vinous, James Suckling, Hamersma";
 
-// Verwijdert de witte studio-achtergrond ECHT (maakt 'm transparant), in plaats
-// van 'm alleen bij te snijden. Gebruikt dezelfde vloed-vul-techniek als eerder
-// handmatig toegepast: alleen de achtergrond die vanaf de randen bereikbaar is
-// wordt transparant gemaakt, zodat een wit etiket (dat omsloten wordt door de
-// fles) intact blijft in plaats van ook doorzichtig te worden.
+// Verwijdert de witte studio-achtergrond ÉN de vloerschaduw ECHT (maakt ze
+// transparant), in plaats van 'm alleen bij te snijden. Gebruikt dezelfde
+// vloed-vul-techniek als eerder handmatig toegepast: alleen de achtergrond die
+// vanaf de randen bereikbaar is wordt transparant gemaakt, zodat een wit etiket
+// (dat omsloten wordt door de fles) intact blijft in plaats van ook doorzichtig
+// te worden. Een pixel telt als "achtergrond" als hij zowel LICHT als NEUTRAAL
+// GRIJS is (weinig kleurverzadiging) — dat vangt zowel de witte achtergrond als
+// de zachte grijze schaduw, terwijl de veel donkerdere en/of kleurrijkere fles
+// en het etiket met rust worden gelaten.
 async function removeWhiteBackground(buffer) {
   const { data, info } = await sharp(buffer)
     .ensureAlpha()
@@ -38,11 +42,13 @@ async function removeWhiteBackground(buffer) {
   const total = width * height;
 
   const bgLike = new Uint8Array(total);
-  const threshold = 50;
+  const minBrightness = 150; // hoe licht een pixel minimaal moet zijn
+  const maxChroma = 26;      // hoe neutraal/grijs (weinig kleurverschil tussen r/g/b)
   for (let p = 0, i = 0; p < total; p++, i += channels) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
-    const dist = Math.sqrt((255 - r) ** 2 + (255 - g) ** 2 + (255 - b) ** 2);
-    bgLike[p] = dist < threshold ? 1 : 0;
+    const brightness = (r + g + b) / 3;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    bgLike[p] = (brightness > minBrightness && chroma < maxChroma) ? 1 : 0;
   }
 
   // Vloed-vullen vanaf alle randpixels, alleen door achtergrond-achtige pixels heen

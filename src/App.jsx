@@ -262,12 +262,48 @@ function displayName(w) {
   return name.replace(/^[\s\-–,]+|[\s\-–,]+$/g, "").trim() || w.wine;
 }
 
-function WineCard({ w, onOpen, onExpand, expanded, onMatchDish, onSetQuantity, onUpdateWine }) {
+function WineCard({ w, onOpen, onExpand, expanded, onMatchDish, onSetQuantity, onUpdateWine, onDelete }) {
   const cardRef = useRef(null);
   const [showQtyModal, setShowQtyModal] = useState(false);
   const [tempQty, setTempQty] = useState(w.quantity);
+  const [showZeroConfirm, setShowZeroConfirm] = useState(false);
+  const [pendingZeroAction, setPendingZeroAction] = useState(null); // "open" | "setQty"
   const [refreshStatus, setRefreshStatus] = useState("idle"); // idle | loading | error
   const [refreshErrorDetail, setRefreshErrorDetail] = useState("");
+
+  function handleOpenClick(e) {
+    e.stopPropagation();
+    if (w.quantity === 1) {
+      setPendingZeroAction("open");
+      setShowZeroConfirm(true);
+    } else {
+      onOpen(w.id);
+    }
+  }
+
+  function handleQtySave() {
+    if (tempQty === 0) {
+      setShowQtyModal(false);
+      setPendingZeroAction("setQty");
+      setShowZeroConfirm(true);
+    } else {
+      onSetQuantity(w.id, tempQty);
+      setShowQtyModal(false);
+    }
+  }
+
+  function confirmKeepAtZero() {
+    if (pendingZeroAction === "open") onOpen(w.id);
+    else if (pendingZeroAction === "setQty") onSetQuantity(w.id, 0);
+    setShowZeroConfirm(false);
+    setPendingZeroAction(null);
+  }
+
+  function confirmDeleteWine() {
+    onDelete(w.id);
+    setShowZeroConfirm(false);
+    setPendingZeroAction(null);
+  }
 
   async function refreshWineData() {
     if (refreshStatus === "loading") return;
@@ -474,7 +510,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
 
             <div className="back-footer">
               <div className="back-actions">
-                <button className="btn-open" disabled={empty} onClick={(e) => { e.stopPropagation(); onOpen(w.id); }}>
+                <button className="btn-open" disabled={empty} onClick={handleOpenClick}>
                   <CorkscrewIcon size={14} /> Opentrekken
                 </button>
                 {onMatchDish && (
@@ -523,10 +559,28 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
             <button
               className="btn-open"
               style={{ width: "100%", justifyContent: "center", marginTop: 16 }}
-              onClick={() => { onSetQuantity(w.id, tempQty); setShowQtyModal(false); }}
+              onClick={handleQtySave}
             >
               Opslaan
             </button>
+          </div>
+        </div>
+      )}
+
+      {showZeroConfirm && (
+        <div className="modal-overlay modal-overlay-center" onClick={(e) => { e.stopPropagation(); setShowZeroConfirm(false); }}>
+          <div className="modal qty-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>Laatste fles</span>
+              <X size={20} className="modal-close" onClick={() => setShowZeroConfirm(false)} />
+            </div>
+            <p className="modal-hint">
+              {displayName(w)} staat nu op 0 flessen. Wil je 'm bewaren in je kelder (voor als je 'm later weer koopt), of definitief verwijderen?
+            </p>
+            <div className="zero-confirm-actions">
+              <button className="btn-open" onClick={confirmKeepAtZero}>Bewaren</button>
+              <button className="btn-danger" onClick={confirmDeleteWine}>Verwijderen</button>
+            </div>
           </div>
         </div>
       )}
@@ -534,7 +588,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
   );
 }
 
-function PairingView({ wines, onOpen, onSetQuantity, onUpdateWine, seedWineId, onClearSeed }) {
+function PairingView({ wines, onOpen, onSetQuantity, onUpdateWine, onDelete, seedWineId, onClearSeed }) {
   const [dish, setDish] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | done | error
   const [matches, setMatches] = useState([]);
@@ -759,6 +813,7 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
                   onOpen={onOpen}
                   onSetQuantity={onSetQuantity}
                   onUpdateWine={onUpdateWine}
+                  onDelete={onDelete}
                 />
               </div>
             );
@@ -796,7 +851,6 @@ export default function CellarApp() {
   const [photoAddError, setPhotoAddError] = useState("");
   const [photoAddResult, setPhotoAddResult] = useState(null);
   const cameraInputRef = useRef(null);
-
 
   useEffect(() => {
     if (!saveError) return;
@@ -866,21 +920,39 @@ export default function CellarApp() {
     persist(next);
   }
 
+  function deleteWine(id) {
+    const next = wines.filter(w => w.id !== id);
+    persist(next);
+  }
+
   function nextId() {
     const nums = wines.map(w => parseInt((w.id || "w0").replace("w", "")) || 0);
     return "w" + (Math.max(0, ...nums) + 1);
   }
 
   function normalizeMatch(s) {
-    return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+    return (s || "")
+      .toLowerCase()
+      .replace(/[®™©]/g, "")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function nameOverlapScore(a, b) {
+    const wordsA = new Set(normalizeMatch(a).split(" ").filter(Boolean));
+    const wordsB = new Set(normalizeMatch(b).split(" ").filter(Boolean));
+    if (wordsA.size === 0 || wordsB.size === 0) return 0;
+    let shared = 0;
+    wordsA.forEach(w => { if (wordsB.has(w)) shared++; });
+    return shared / Math.min(wordsA.size, wordsB.size);
   }
 
   function findExistingWine(info) {
-    return wines.find(w =>
-      normalizeMatch(w.producer) === normalizeMatch(info.producer) &&
-      normalizeMatch(w.wine) === normalizeMatch(info.wine) &&
-      String(w.vintage || "") === String(info.vintage || "")
-    );
+    return wines.find(w => {
+      if (String(w.vintage || "") !== String(info.vintage || "")) return false;
+      return nameOverlapScore(w.wine, info.wine) >= 0.7 && nameOverlapScore(w.producer, info.producer) >= 0.5;
+    });
   }
 
   async function handlePhotoCapture(e) {
@@ -915,7 +987,24 @@ export default function CellarApp() {
 
       if (existing) {
         const next = wines.map(w => w.id === existing.id
-          ? { ...w, quantity: (w.quantity || 0) + 1, bottlePhoto: data.packshot || w.bottlePhoto }
+          ? {
+              ...w,
+              quantity: (w.quantity || 0) + 1,
+              bottlePhoto: data.packshot || w.bottlePhoto,
+              region: info.region || w.region,
+              country: info.country || w.country,
+              grapes: info.grapes || w.grapes,
+              type: info.type || w.type,
+              ratings: { ...w.ratings, ...(info.ratings || {}) },
+              priceValue: info.priceValue || w.priceValue,
+              priceNote: info.priceNote || w.priceNote,
+              description: info.description || w.description,
+              tastingNotes: info.tastingNotes || w.tastingNotes,
+              drinkFrom: info.drinkFrom || w.drinkFrom,
+              drinkUntil: info.drinkUntil || w.drinkUntil,
+              peakFrom: info.peakFrom || w.peakFrom,
+              peakUntil: info.peakUntil || w.peakUntil,
+            }
           : w);
         await persist(next);
         setPhotoAddResult({ mode: "matched", wineName: displayName(existing) });
@@ -1262,11 +1351,11 @@ export default function CellarApp() {
         .front-score-label-muted { color: var(--muted); }
 
         .front-bottle-col {
-          position: absolute; left: 0; right: -28px; top: 44px; bottom: 20px;
+          position: absolute; left: 0; right: -14px; top: 44px; bottom: 20px;
           z-index: 1; display: flex; align-items: stretch; justify-content: flex-end;
         }
         .bottle-photo {
-          height: 100%; width: auto; max-width: 96%; object-fit: contain;
+          height: 100%; width: auto; max-width: 90%; object-fit: contain;
           filter: drop-shadow(0 16px 18px rgba(60,45,20,0.16));
         }
 
@@ -1372,6 +1461,13 @@ export default function CellarApp() {
           padding: 12px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
           height: 44px; box-sizing: border-box; line-height: 1;
         }
+        .btn-danger {
+          display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1;
+          background: var(--surface); color: var(--wine); border: 1px solid var(--wine); border-radius: 999px;
+          padding: 12px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+          height: 44px; box-sizing: border-box; line-height: 1;
+        }
+        .zero-confirm-actions { display: flex; gap: 10px; margin-top: 18px; }
         .seed-clear { width: 100%; margin-top: 20px; }
         .stock-label { display: block; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
         .stock-label-clickable {
@@ -1675,6 +1771,7 @@ export default function CellarApp() {
                 onSetQuantity={setQuantity}
                 onMatchDish={id => { setPairingSeedId(id); setView("pairing"); }}
                 onUpdateWine={updateWine}
+                onDelete={deleteWine}
               />
             ))}
           </div>
@@ -1687,6 +1784,7 @@ export default function CellarApp() {
           onOpen={openBottle}
           onSetQuantity={setQuantity}
           onUpdateWine={updateWine}
+          onDelete={deleteWine}
           seedWineId={pairingSeedId}
           onClearSeed={() => setPairingSeedId(null)}
         />
@@ -1778,7 +1876,7 @@ export default function CellarApp() {
             </div>
             <p className="modal-hint">
               {photoAddResult.mode === "matched"
-                ? `"${photoAddResult.wineName}" stond al in je kelder — het aantal is met 1 opgehoogd en de foto is vervangen door deze nieuwe packshot.`
+                ? `"${photoAddResult.wineName}" stond al in je kelder — het aantal is met 1 opgehoogd, en de foto en gegevens zijn ververst.`
                 : `"${photoAddResult.wineName}" is toegevoegd aan je kelder, inclusief productfoto en gevonden gegevens.`}
             </p>
             <button className="btn-open" style={{ width: "100%", justifyContent: "center" }} onClick={() => setPhotoAddResult(null)}>
