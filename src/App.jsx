@@ -129,9 +129,20 @@ function interpolateTable(table, x) {
 function parseAiJson(text) {
   let clean = text.replace(/```json|```/g, "").trim();
   const firstBrace = clean.indexOf("{");
-  const lastBrace = clean.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    clean = clean.slice(firstBrace, lastBrace + 1);
+  const firstBracket = clean.indexOf("[");
+  // Bepaal of het antwoord een object ({...}) of een lijst ([...]) is, en pak
+  // het bijpassende haakjespaar. Anders knipt een op-objecten-gerichte extractie
+  // per ongeluk de buitenste [ ] van een lijst-antwoord weg (zoals bij
+  // gerechtsuggesties, die als JSON-array terugkomen).
+  const isArray = firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace);
+  if (isArray) {
+    const lastBracket = clean.lastIndexOf("]");
+    if (lastBracket > firstBracket) clean = clean.slice(firstBracket, lastBracket + 1);
+  } else {
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.slice(firstBrace, lastBrace + 1);
+    }
   }
   return JSON.parse(clean);
 }

@@ -49,7 +49,7 @@ async function generatePackshot(photoBase64, mimeType, openaiKey) {
   form.append("model", "gpt-image-2");
   form.append("image", blob, `bottle.${ext}`);
   form.append("prompt", prompt);
-  form.append("quality", "high");
+  form.append("quality", "medium"); // "high" liep soms tegen Vercel's 60s-tijdslimiet aan (FUNCTION_INVOCATION_TIMEOUT)
   form.append("size", "1024x1536"); // staand formaat — past van nature beter bij een fles dan vierkant
 
   const res = await fetch("https://api.openai.com/v1/images/edits", {
