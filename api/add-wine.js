@@ -1,22 +1,14 @@
 // Vercel serverless function. Runs op de server, nooit in de browser.
-// Combineert twee stappen voor het toevoegen van een wijn via foto:
+// Verwerkt twee manieren om een wijn toe te voegen:
 //
-// 1. OpenAI (OPENAI_API_KEY) genereert een volledige, professionele packshot
-//    op basis van je foto — met dezelfde prompt die je zelf handmatig gebruikt
-//    en waarvan je hebt gezien dat die goede, correcte resultaten geeft. Deze
-//    packshot (inclusief zijn eigen nette witte achtergrond) wordt direct als
-//    foto op de kaart getoond — er wordt dus NIET geprobeerd om de achtergrond
-//    achteraf transparant te maken of uit te knippen. Dat bleek keer op keer
-//    problemen te geven (rare overgangen, verminkte/gedraaide foto's); door de
-//    packshot gewoon als volwaardige foto te tonen (met object-fit: cover in
-//    een vaste kaart-kolom) is er niets meer om mis te laten gaan.
-// 2. Claude (ANTHROPIC_API_KEY) leest het etiket op de ORIGINELE foto en zoekt
-//    via web-search de wijn op: naam, producent, jaargang, streek, druiven,
-//    scores, prijs en proefnotities.
+// A) Via foto (photoBase64): OpenAI genereert een packshot, Claude leest het
+//    etiket en zoekt de wijn op.
+// B) Via tekst (description): geen foto, dus geen packshot — Claude zoekt de
+//    wijn op basis van de getypte omschrijving (bv. alleen naam + jaargang).
 //
 // Beide sleutels worden hier server-side gebruikt en nooit naar de browser
 // gestuurd. Zet ze in je Vercel-projectinstellingen (Environment Variables).
-// Zonder OPENAI_API_KEY werkt alles nog gewoon, dan blijft de kaart zonder foto.
+// Zonder OPENAI_API_KEY werkt route A nog gewoon, dan blijft de kaart zonder foto.
 
 export const config = {
   api: {
@@ -83,6 +75,36 @@ Stap 5: Schat een realistisch drinkvenster in — vanaf welk jaar tot welk jaar 
 Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null voor velden die je niet kunt vaststellen, verzin nooit scores of prijzen — het drinkvenster in stap 5 mag wel een onderbouwde inschatting zijn):
 {"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030}`;
 
+  const data = await callClaudeForWineJson(
+    [
+      { type: "image", source: { type: "base64", media_type: mimeType, data: photoBase64 } },
+      { type: "text", text: prompt },
+    ],
+    anthropicKey
+  );
+  return data;
+}
+
+async function identifyAndEnrichWineFromText(description, anthropicKey) {
+  const currentYear = new Date().getFullYear();
+  const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Het huidige jaar is ${currentYear}.
+
+Een gebruiker heeft de volgende, mogelijk beknopte of losse omschrijving van een wijn gegeven — bijvoorbeeld alleen een naam, jaargang en/of wijnhuis:
+"${description}"
+
+Stap 1: Zoek op internet uit om welke specifieke wijn het gaat, en identificeer: volledige naam, producent/wijnhuis, jaargang, land, streek, druivenras(sen), type (red/white/rose/sparkling/orange). Als de jaargang niet genoemd is, gebruik dan de meest recente courante jaargang die je kunt vinden.
+Stap 2: Zoek op internet naar scores van deze bronnen (alleen invullen als je een score écht hebt gevonden, nooit verzinnen): ${RATING_SOURCES_HINT}. Vivino als getal 1-5 met 1 decimaal, andere bronnen als score op 100.
+Stap 3: Zoek de huidige winkelprijs, bij voorkeur bij een Nederlandse of Belgische wijnhandel.
+Stap 4: Schrijf een korte, feitelijke omschrijving van het wijnhuis (2-3 zinnen) en beknopte proefnotities (max. 5 regels), in het Nederlands.
+Stap 5: Schat een realistisch drinkvenster in — vanaf welk jaar tot welk jaar deze wijn goed te drinken is, en de piekperiode daarbinnen. Baseer dit op het type wijn, de jaargang, de druif(ven) en de stijl/kwaliteit. Vul dit altijd in, ook als inschatting — laat dit nooit leeg.
+
+Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null voor velden die je niet kunt vaststellen, verzin nooit scores of prijzen — het drinkvenster in stap 5 mag wel een onderbouwde inschatting zijn):
+{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030}`;
+
+  return callClaudeForWineJson([{ type: "text", text: prompt }], anthropicKey);
+}
+
+async function callClaudeForWineJson(content, anthropicKey) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -93,15 +115,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 1500,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mimeType, data: photoBase64 } },
-            { type: "text", text: prompt },
-          ],
-        },
-      ],
+      messages: [{ role: "user", content }],
       tools: [{ type: "web_search_20250305", name: "web_search" }],
     }),
   });
@@ -140,13 +154,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { photoBase64, mimeType } = req.body || {};
-  if (!photoBase64) {
-    res.status(400).json({ error: { message: "Geen foto meegestuurd." } });
+  const { photoBase64, mimeType, description } = req.body || {};
+  if (!photoBase64 && !description) {
+    res.status(400).json({ error: { message: "Geen foto of omschrijving meegestuurd." } });
     return;
   }
 
   try {
+    if (description) {
+      // Tekst-gebaseerd: geen foto om een packshot van te maken, dus alleen de gegevens opzoeken.
+      const wineInfo = await identifyAndEnrichWineFromText(description, anthropicKey);
+      res.status(200).json({ wine: wineInfo, packshot: null });
+      return;
+    }
+
     // Beide stappen mogen gelijktijdig lopen, ze zijn onafhankelijk van elkaar.
     const [packshot, wineInfo] = await Promise.all([
       generatePackshot(photoBase64, mimeType || "image/jpeg", openaiKey),
