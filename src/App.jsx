@@ -276,22 +276,6 @@ function contrastText(hex) {
   return luminance(hex) > 140 ? "#2A231D" : "#F3EDE1";
 }
 
-function WineGlassLoader() {
-  const grapes = [
-    { cx: 20, cy: 12 },
-    { cx: 14, cy: 20 }, { cx: 26, cy: 20 },
-    { cx: 8, cy: 28 }, { cx: 20, cy: 28 }, { cx: 32, cy: 28 },
-  ];
-  return (
-    <svg width="36" height="36" viewBox="0 0 40 34" className="grape-loader">
-      <path className="grape-stem" d="M20,1 C22,1 22,4 20,7" fill="none" strokeLinecap="round" />
-      {grapes.map((g, i) => (
-        <circle key={i} cx={g.cx} cy={g.cy} r="4.3" className="grape-dot" style={{ animationDelay: `${i * 0.15}s` }} />
-      ))}
-    </svg>
-  );
-}
-
 function CorkscrewIcon({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -727,6 +711,7 @@ function PairingView({ wines, onOpen, onSetQuantity, onUpdateWine, onDelete, onC
   const [dishSuggestions, setDishSuggestions] = useState([]);
   const [dishStatus, setDishStatus] = useState("idle");
   const [errorDetail, setErrorDetail] = useState("");
+  const [moreDishStatus, setMoreDishStatus] = useState("idle"); // idle | loading | error
   const [expandedId, setExpandedId] = useState(null);
   const lastSeedRef = useRef(null);
 
@@ -824,6 +809,51 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
     }
   }
 
+  async function loadMoreDishSuggestions() {
+    if (moreDishStatus === "loading" || !seedWine) return;
+    setMoreDishStatus("loading");
+    const wineInfo = {
+      naam: displayName(seedWine),
+      producent: seedWine.producer,
+      vintage: seedWine.vintage,
+      type: seedWine.type,
+      druiven: seedWine.grapes,
+      smaakprofiel: tasteProfile(seedWine),
+      land: seedWine.country,
+      streek: seedWine.region,
+    };
+    const already = dishSuggestions.map(d => d.title);
+    const prompt = `Je bent een ervaren sommelier. Hier zijn de gegevens van een specifieke wijn, als JSON:
+${JSON.stringify(wineInfo)}
+
+Deze gerechten zijn al voorgesteld, geef die niet nogmaals: ${JSON.stringify(already)}
+
+Geef 5 NIEUWE, andere concrete gerechten of maaltijden die uitstekend passen bij deze wijn. Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat:
+[{"title": "Korte naam van het gerecht in het Nederlands", "description": "1-2 zinnen: wat het gerecht inhoudt en waarom het goed bij deze wijn past."}]`;
+
+    try {
+      const response = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await safeJsonResponse(response);
+      if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+      const parsed = parseAiJson(text);
+      setDishSuggestions(prev => [...prev, ...parsed]);
+      setMoreDishStatus("idle");
+    } catch (e) {
+      setMoreDishStatus("error");
+      setTimeout(() => setMoreDishStatus("idle"), 6000);
+    }
+  }
+
   useEffect(() => {
     if (seedWineId && seedWineId !== lastSeedRef.current && seedWine) {
       lastSeedRef.current = seedWineId;
@@ -862,7 +892,7 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
 
         {dishStatus === "loading" && (
           <div className="pairing-loading">
-            <WineGlassLoader />
+            <div className="photo-processing-spinner" />
             <div className="pairing-loading-text">Ik denk na over gerechten die hierbij passen…</div>
           </div>
         )}
@@ -880,11 +910,21 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
                 <div className="dish-description">{d.description}</div>
               </div>
             ))}
+            <button
+              className="btn-secondary more-suggestions-btn"
+              onClick={loadMoreDishSuggestions}
+              disabled={moreDishStatus === "loading"}
+            >
+              {moreDishStatus === "loading" ? <div className="photo-processing-spinner photo-processing-spinner-sm" /> : "Meer suggesties"}
+            </button>
+            {moreDishStatus === "error" && (
+              <div className="pairing-error">Kon geen extra suggesties ophalen. Probeer het nog eens.</div>
+            )}
           </div>
         )}
 
         <button className="btn-secondary seed-clear" onClick={() => { onClearSeed(); setDishStatus("idle"); lastSeedRef.current = null; }}>
-          Zoek in plaats daarvan een wijn bij een gerecht
+          Vind een wijn bij een gerecht
         </button>
         </div>
       </>
@@ -918,7 +958,7 @@ Geef 3 tot 5 concrete gerechten of maaltijden die uitstekend passen bij deze wij
 
       {status === "loading" && (
         <div className="pairing-loading">
-          <WineGlassLoader />
+          <div className="photo-processing-spinner" />
           <div className="pairing-loading-text">Ik kijk in je kelder naar de beste match…</div>
         </div>
       )}
@@ -1579,7 +1619,7 @@ export default function CellarApp() {
         .filter-nav-count { font-size: 12.5px; font-weight: 500; color: var(--bronze); margin-left: 6px; }
         .filter-nav-row-title-wrap { display: flex; align-items: center; }
 
-        .wine-list { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+        .wine-list { padding: 14px 16px 65vh; display: flex; flex-direction: column; gap: 10px; }
 
         .card-scene {
           height: 480px;
@@ -1878,18 +1918,6 @@ export default function CellarApp() {
         .pairing-loading-text {
           font-size: 13px; color: var(--muted); text-align: center;
         }
-        .grape-stem { stroke: var(--gold); stroke-width: 1.6; }
-        .grape-dot {
-          fill: var(--wine);
-          stroke: var(--wine);
-          stroke-width: 1.4;
-          opacity: 0.18;
-          animation: grapePop 1.6s ease-in-out infinite;
-        }
-        @keyframes grapePop {
-          0%, 100% { opacity: 0.18; }
-          50% { opacity: 1; }
-        }
         .pairing-error {
           margin-top: 18px; font-size: 13px;
           color: var(--wine); background: rgba(140,74,58,0.08); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px;
@@ -1900,6 +1928,11 @@ export default function CellarApp() {
           font-size: 11px; font-weight: 700;
           text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px;
         }
+        .more-suggestions-btn {
+          width: 100%; margin-top: 6px; justify-content: center;
+          display: flex; align-items: center;
+        }
+        .photo-processing-spinner-sm { width: 16px; height: 16px; border-width: 2px; margin: 0; }
         .pairing-result-block { margin-bottom: 16px; }
         .pairing-reason {
           font-size: 13px; color: var(--text-soft);
@@ -1927,7 +1960,6 @@ export default function CellarApp() {
         .seed-wine-score-max { font-weight: 500; opacity: 0.6; }
         .seed-wine-photo {
           height: 92px; width: auto; max-width: 90px; object-fit: contain; flex-shrink: 0;
-          filter: drop-shadow(0 8px 10px rgba(36,30,20,0.14));
         }
         .dish-card {
           background: #FFFFFF; border: 1px solid var(--line); border-radius: 20px; padding: 16px 18px;
