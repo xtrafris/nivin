@@ -1431,7 +1431,7 @@ export default function CellarApp() {
         </div>
       )}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
 
         html, body {
           background: #F8F3E8;
@@ -1454,7 +1454,7 @@ export default function CellarApp() {
           --line: rgba(80,64,32,0.14);
           --muted: #8C7F68;
           --text-soft: #5B4E3A;
-          font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, 'SF Pro Text', system-ui, sans-serif;
           background: var(--bg);
           color: var(--ink);
           min-height: 100vh;
@@ -1481,7 +1481,7 @@ export default function CellarApp() {
         }
         .h1-text { line-height: 1; font-weight: 700; }
         .cellar-title .sub {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
           color: var(--bronze); margin-top: 8px; font-weight: 700;
         }
@@ -1628,7 +1628,7 @@ export default function CellarApp() {
         .card-front.is-empty { opacity: 0.55; }
         .front-status-pill {
           position: absolute; top: 16px; left: 18px; z-index: 4;
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 10.5px; font-weight: 700;
           border: 1px solid; border-radius: 999px; padding: 3px 10px; background: rgba(255,255,255,0.7);
         }
@@ -1640,7 +1640,7 @@ export default function CellarApp() {
         }
         .front-text-col.no-photo { width: 100%; padding-right: 20px; }
         .front-vintage {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 12px; font-weight: 500; color: #4A4235; letter-spacing: 0.02em;
         }
         .front-title {
@@ -1648,21 +1648,21 @@ export default function CellarApp() {
           line-height: 1.12; margin: 6px 0 0; color: #241E14;
         }
         .front-producer {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 12.5px; font-weight: 500; margin-top: 10px; color: #52483A;
         }
         .front-origin {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 11.5px; font-weight: 500; margin-top: 3px; color: #7A6E4A;
         }
         .front-score { margin-top: auto; }
-        .front-score-num { font-family: -apple-system, system-ui, sans-serif; display: block; font-size: 32px; font-weight: 700; line-height: 1; }
+        .front-score-num { font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif; display: block; font-size: 32px; font-weight: 700; line-height: 1; }
         .front-score-max {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 15px; font-weight: 500; opacity: 0.55;
         }
         .front-score-label {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           display: block; font-size: 12px; font-weight: 500; margin-top: 3px;
         }
         .front-score-label-muted { color: var(--muted); }
@@ -1734,7 +1734,7 @@ export default function CellarApp() {
         .back-row-icon-price { background: var(--bg); }
         .back-score-circle-empty { background: #EDEAE2; }
         .back-score-circle {
-          font-family: -apple-system, system-ui, sans-serif; font-size: 18px; font-weight: 700;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif; font-size: 18px; font-weight: 700;
           line-height: 1; text-align: center;
         }
         .back-row-body { flex: 1; min-width: 0; }
@@ -1917,7 +1917,7 @@ export default function CellarApp() {
           font-size: 18px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15;
         }
         .seed-wine-sub {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 12.5px; color: var(--muted); margin-top: 5px;
         }
         .seed-wine-score {
@@ -1938,7 +1938,7 @@ export default function CellarApp() {
           font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 5px;
         }
         .dish-description {
-          font-family: -apple-system, system-ui, sans-serif;
+          font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, system-ui, sans-serif;
           font-size: 12.5px; color: var(--muted); line-height: 1.45;
         }
         .modal-overlay {
