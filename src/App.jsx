@@ -1201,7 +1201,14 @@ export default function CellarApp() {
     if (wordsA.size === 0 || wordsB.size === 0) return 0;
     let shared = 0;
     wordsA.forEach(w => { if (wordsB.has(w)) shared++; });
-    return shared / Math.min(wordsA.size, wordsB.size);
+    // Jaccard-gelijkenis (gedeeld / totaal aantal unieke woorden), niet delen
+    // door de kleinste set — anders scoort een korte naam die grotendeels in
+    // een langere naam voorkomt kunstmatig hoog, ook al is het een heel
+    // andere wijn (bv. "Kiedrich Turmberg Riesling Trocken" vs. "Kiedrich
+    // Klosterberg Riesling Trocken VDP.Erste Lage" — twee verschillende
+    // wijngaarden van hetzelfde wijnhuis, met dezelfde druif en stijl).
+    const union = new Set([...wordsA, ...wordsB]).size;
+    return shared / union;
   }
 
   function findExistingWine(info) {
