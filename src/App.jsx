@@ -272,6 +272,8 @@ function WineCard({ w, onOpen, onExpand, expanded, onMatchDish, onSetQuantity, o
   const [pendingZeroAction, setPendingZeroAction] = useState(null); // "open" | "setQty"
   const [refreshStatus, setRefreshStatus] = useState("idle"); // idle | loading | error
   const [refreshErrorDetail, setRefreshErrorDetail] = useState("");
+  const [priceRefreshStatus, setPriceRefreshStatus] = useState("idle"); // idle | loading | error
+  const [priceRefreshErrorDetail, setPriceRefreshErrorDetail] = useState("");
 
   function handleOpenClick(e) {
     e.stopPropagation();
@@ -307,7 +309,7 @@ function WineCard({ w, onOpen, onExpand, expanded, onMatchDish, onSetQuantity, o
     setPendingZeroAction(null);
   }
 
-  async function refreshWineData() {
+  async function refreshScores() {
     if (refreshStatus === "loading") return;
     setRefreshStatus("loading");
     const wineInfo = {
@@ -319,16 +321,13 @@ function WineCard({ w, onOpen, onExpand, expanded, onMatchDish, onSetQuantity, o
       druiven: w.grapes,
     };
     const bronnen = Object.values(RATING_SOURCES).join(", ");
-    const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Zoek de meest recente en actuele informatie op over deze specifieke wijn:
+    const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Zoek de meest recente en actuele scores op voor deze specifieke wijn:
 ${JSON.stringify(wineInfo)}
 
-Zoek naar:
-1. Scores van deze bronnen (alleen invullen als je een score écht hebt gevonden, nooit verzinnen): ${bronnen}. Vivino als getal 1-5 met 1 decimaal, alle andere bronnen als score op 100.
-2. De huidige, actuele winkelprijs, bij voorkeur bij een Nederlandse of Belgische wijnhandel. Vermeld in priceNote bij welke winkel(s) en of het om exact deze jaargang gaat.
-3. Een korte, actuele omschrijving van het wijnhuis/domein (2-4 zinnen) en proefnotities (2-3 zinnen), in het Nederlands.
+Zoek naar scores van deze bronnen (alleen invullen als je een score écht hebt gevonden, nooit verzinnen): ${bronnen}. Vivino als getal 1-5 met 1 decimaal, alle andere bronnen als score op 100.
 
-Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (laat een veld weg of gebruik null als je niets vindt, verzin nooit scores of prijzen):
-{"ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "..."}`;
+Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (laat een bron weg als je niets vindt, verzin nooit scores):
+{"ratings": {"vivino": 4.2}}`;
 
     try {
       const response = await fetch("/api/claude", {
@@ -336,7 +335,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 1500,
+          max_tokens: 800,
           messages: [{ role: "user", content: prompt }],
           tools: [{ type: "web_search_20250305", name: "web_search" }],
         }),
@@ -348,16 +347,59 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
       const parsed = parseAiJson(text);
       const updates = {};
       if (parsed.ratings && typeof parsed.ratings === "object") updates.ratings = { ...w.ratings, ...parsed.ratings };
-      if (parsed.priceValue) updates.priceValue = parsed.priceValue;
-      if (parsed.priceNote) updates.priceNote = parsed.priceNote;
-      if (parsed.description) updates.description = parsed.description;
-      if (parsed.tastingNotes) updates.tastingNotes = parsed.tastingNotes;
       onUpdateWine(w.id, updates);
       setRefreshStatus("idle");
     } catch (e) {
       setRefreshErrorDetail(String((e && e.message) || e || "onbekende fout"));
       setRefreshStatus("error");
       setTimeout(() => setRefreshStatus("idle"), 6000);
+    }
+  }
+
+  async function refreshPrice() {
+    if (priceRefreshStatus === "loading") return;
+    setPriceRefreshStatus("loading");
+    const wineInfo = {
+      naam: w.wine,
+      producent: w.producer,
+      jaargang: w.vintage,
+      land: w.country,
+      streek: w.region,
+    };
+    const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Zoek de meest actuele winkelprijs op voor deze specifieke wijn, uitsluitend bij winkels in Nederland of de EU:
+${JSON.stringify(wineInfo)}
+
+Geef in "priceValue" een afgeronde prijs(range) zonder cijfers achter de komma, bijvoorbeeld "€ 56 - 65" of "€ 24" — nooit decimalen.
+Geef in "priceNote" ALLEEN de naam van de winkel gevolgd door de (eveneens afgeronde) prijs bij die winkel, bijvoorbeeld "Wijnvoordeel.nl € 24" — geen verdere toelichting, geen extra zinnen. Vind je meerdere winkels, scheid ze dan met een komma. Vind je geen winkel in NL of de EU maar wel een algemene prijsindicatie, laat "priceNote" dan leeg.
+
+Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null als je niets vindt, verzin nooit een prijs):
+{"priceValue": "€ 56 - 65", "priceNote": "Wijnvoordeel.nl € 60"}`;
+
+    try {
+      const response = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 800,
+          messages: [{ role: "user", content: prompt }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
+      const data = await safeJsonResponse(response);
+      if (data.error) throw new Error(`API-fout: ${data.error.type || ""} ${data.error.message || ""}`.trim());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+      const parsed = parseAiJson(text);
+      const updates = {};
+      if (parsed.priceValue) updates.priceValue = parsed.priceValue;
+      updates.priceNote = parsed.priceNote || "";
+      onUpdateWine(w.id, updates);
+      setPriceRefreshStatus("idle");
+    } catch (e) {
+      setPriceRefreshErrorDetail(String((e && e.message) || e || "onbekende fout"));
+      setPriceRefreshStatus("error");
+      setTimeout(() => setPriceRefreshStatus("idle"), 6000);
     }
   }
 
@@ -495,7 +537,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
               )}
               <button
                 className={"refresh-btn" + (refreshStatus === "loading" ? " refresh-btn-spinning" : "")}
-                onClick={(e) => { e.stopPropagation(); refreshWineData(); }}
+                onClick={(e) => { e.stopPropagation(); refreshScores(); }}
                 disabled={refreshStatus === "loading"}
                 title="Zoek actuele scores en prijzen opnieuw op"
               >
@@ -503,7 +545,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
               </button>
             </div>
             {refreshStatus === "error" && (
-              <div className="back-plain-text" style={{ color: "var(--wine)", marginTop: -8, marginBottom: 8 }}>Kon niet verversen ({refreshErrorDetail || "onbekende fout"}), probeer het nog eens.</div>
+              <div className="back-plain-text" style={{ color: "var(--wine)", marginTop: -8, marginBottom: 8 }}>Kon scores niet verversen ({refreshErrorDetail || "onbekende fout"}), probeer het nog eens.</div>
             )}
 
             {/* ---- Prijs ---- */}
@@ -519,7 +561,18 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
                   <div className="back-row-sub">Nog geen prijsinfo gevonden voor deze wijn.</div>
                 )}
               </div>
+              <button
+                className={"refresh-btn" + (priceRefreshStatus === "loading" ? " refresh-btn-spinning" : "")}
+                onClick={(e) => { e.stopPropagation(); refreshPrice(); }}
+                disabled={priceRefreshStatus === "loading"}
+                title="Zoek actuele prijzen in NL/EU opnieuw op"
+              >
+                <RefreshCw size={14} />
+              </button>
             </div>
+            {priceRefreshStatus === "error" && (
+              <div className="back-plain-text" style={{ color: "var(--wine)", marginTop: -8, marginBottom: 8 }}>Kon prijs niet verversen ({priceRefreshErrorDetail || "onbekende fout"}), probeer het nog eens.</div>
+            )}
 
             {w.notes && (
               <>
@@ -1291,7 +1344,7 @@ export default function CellarApp() {
           background: rgba(248,243,232,0.92);
           backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
           color: var(--ink);
-          padding: 30px 20px 22px 16px;
+          padding: 22px 20px 16px 16px;
           position: sticky; top: 0; z-index: 25;
         }
         .cellar-title {
