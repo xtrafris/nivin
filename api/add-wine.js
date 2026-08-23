@@ -9,6 +9,16 @@
 // Beide sleutels worden hier server-side gebruikt en nooit naar de browser
 // gestuurd. Zet ze in je Vercel-projectinstellingen (Environment Variables).
 // Zonder OPENAI_API_KEY werkt route A nog gewoon, dan blijft de kaart zonder foto.
+//
+// De gegenereerde packshot wordt geüpload naar Supabase Storage (bucket
+// "wine-photos") en er komt alleen een link terug — niet de hele foto als
+// tekst. Dat houdt elke opslag-actie in de app klein en snel, ook als de
+// kelder groeit. Zonder Storage-bucket (nog niet aangemaakt, of tijdelijk
+// niet bereikbaar) valt dit automatisch terug op de oude werkwijze
+// (foto als data-URI meesturen), dus niets breekt zonder die bucket — hij
+// werkt dan alleen nog niet optimaal.
+
+import { createClient } from "@supabase/supabase-js";
 
 export const config = {
   api: {
@@ -19,6 +29,35 @@ export const config = {
 
 const RATING_SOURCES_HINT =
   "Vivino, CellarTracker, Wine Advocate, Wine Spectator, Decanter, Vinous, James Suckling, Hamersma";
+
+const PHOTO_BUCKET = "wine-photos";
+
+async function uploadPackshotToStorage(base64, mimeType) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const buffer = Buffer.from(base64, "base64");
+    const ext = mimeType === "image/png" ? "png" : "jpg";
+    const path = `packshots/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+    if (error) {
+      console.error("Supabase Storage upload mislukt, val terug op data-URI:", error.message);
+      return null;
+    }
+    const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) {
+    console.error("Supabase Storage upload gaf een fout, val terug op data-URI:", e);
+    return null;
+  }
+}
 
 async function generatePackshot(photoBase64, mimeType, openaiKey) {
   if (!openaiKey) return null;
@@ -171,14 +210,22 @@ export default async function handler(req, res) {
     }
 
     // Beide stappen mogen gelijktijdig lopen, ze zijn onafhankelijk van elkaar.
-    const [packshot, wineInfo] = await Promise.all([
+    const [packshotRaw, wineInfo] = await Promise.all([
       generatePackshot(photoBase64, mimeType || "image/jpeg", openaiKey),
       identifyAndEnrichWine(photoBase64, mimeType || "image/jpeg", anthropicKey),
     ]);
 
+    let packshotUrl = null;
+    if (packshotRaw) {
+      const uploadedUrl = await uploadPackshotToStorage(packshotRaw.base64, packshotRaw.mimeType);
+      // Val terug op de oude data-URI als de Storage-upload (nog) niet lukt,
+      // bijvoorbeeld omdat de bucket "wine-photos" nog niet is aangemaakt.
+      packshotUrl = uploadedUrl || `data:${packshotRaw.mimeType};base64,${packshotRaw.base64}`;
+    }
+
     res.status(200).json({
       wine: wineInfo,
-      packshot: packshot ? `data:${packshot.mimeType};base64,${packshot.base64}` : null,
+      packshot: packshotUrl,
     });
   } catch (err) {
     res.status(500).json({ error: { message: String((err && err.message) || err) } });

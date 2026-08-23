@@ -1031,6 +1031,7 @@ export default function CellarApp() {
   const [cardPhotoTargetId, setCardPhotoTargetId] = useState(null); // wijn-id als de camera een bestaande kaart moet bijwerken
   const [scrollToId, setScrollToId] = useState(null); // wijn-id waar we na een update/toevoeging naartoe moeten scrollen
   const cameraInputRef = useRef(null);
+  const photoMigrationRanRef = useRef(false);
 
   function startCardPhotoCapture(id) {
     setCardPhotoTargetId(id);
@@ -1080,6 +1081,60 @@ export default function CellarApp() {
       setLoading(false);
     })();
   }, []);
+
+  // Eenmalige foto-migratie: wijnen waarvan de foto nog als grote data-URI in
+  // de wijngegevens zelf zit (van vóór de overstap naar Supabase Storage)
+  // worden alsnog geüpload naar de "wine-photos"-bucket; alleen de link
+  // blijft over in de wijngegevens. Zonder die bucket (nog niet aangemaakt)
+  // gebeurt er simpelweg niets — geen foutmelding, gewoon een no-op.
+  useEffect(() => {
+    if (loading || photoMigrationRanRef.current) return;
+    const embedded = wines.filter(w => typeof w.bottlePhoto === "string" && w.bottlePhoto.startsWith("data:"));
+    if (embedded.length === 0) return;
+    photoMigrationRanRef.current = true;
+
+    (async () => {
+      let changed = false;
+      const next = [...wines];
+      for (const w of embedded) {
+        try {
+          const match = w.bottlePhoto.match(/^data:(.+?);base64,(.+)$/);
+          if (!match) continue;
+          const mimeType = match[1];
+          const base64 = match[2];
+          const ext = mimeType === "image/png" ? "png" : "jpg";
+          const path = `packshots/${w.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+          const byteChars = atob(base64);
+          const byteNumbers = new Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+          const blob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+
+          const { error } = await supabase.storage.from("wine-photos").upload(path, blob, { contentType: mimeType, upsert: false });
+          if (error) {
+            console.warn("Foto-migratie: upload mislukt voor", w.id, error.message);
+            continue; // bucket bestaat waarschijnlijk nog niet — later opnieuw proberen
+          }
+          const { data } = supabase.storage.from("wine-photos").getPublicUrl(path);
+          if (data && data.publicUrl) {
+            const idx = next.findIndex(x => x.id === w.id);
+            if (idx !== -1) {
+              next[idx] = { ...next[idx], bottlePhoto: data.publicUrl };
+              changed = true;
+            }
+          }
+        } catch (e) {
+          console.warn("Foto-migratie: fout bij", w.id, e);
+        }
+      }
+      if (changed) {
+        await persist(next);
+      } else {
+        // Niets gelukt (bv. bucket ontbreekt nog) — bij een volgend bezoek gewoon opnieuw proberen.
+        photoMigrationRanRef.current = false;
+      }
+    })();
+  }, [loading, wines]);
 
   async function persist(next) {
     setWines(next);
