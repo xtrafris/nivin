@@ -2037,11 +2037,11 @@ export default function CellarApp() {
         .modal {
           background: #FFFFFF; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
           border: 1px solid var(--line);
-          border-radius: 24px 24px 0 0; padding: 20px 18px 26px;
-          box-shadow: 0 -10px 40px rgba(36,30,20,0.14);
+          border-radius: 24px; padding: 20px 18px 26px;
+          box-shadow: 0 20px 50px rgba(36,30,20,0.18);
         }
-        .qty-modal { max-width: 340px; border-radius: 24px; box-shadow: 0 20px 50px rgba(36,30,20,0.18); }
-        .add-choice-modal { max-width: 380px; border-radius: 24px; box-shadow: 0 20px 50px rgba(36,30,20,0.18); }
+        .qty-modal { max-width: 340px; }
+        .add-choice-modal { max-width: 380px; }
         .modal-header {
           display: flex; align-items: center; justify-content: space-between;
           font-size: 17px; font-weight: 700; margin-bottom: 6px;
