@@ -16,10 +16,10 @@ const TYPE_META = {
 };
 
 const STATUS_META = {
-  approaching: { label: "Laten liggen", color: "#4C7EB0" },
-  prime: { label: "Op zijn best", color: "#2F9B62" },
-  declining: { label: "Snel opdrinken", color: "#D19A2E" },
-  past_prime: { label: "Over de top", color: "#A6392E" },
+  approaching: { label: "Laten liggen", color: "#4C7EB0", tintBg: "rgba(76,126,176,0.14)" },
+  prime: { label: "Op zijn best", color: "#2F9B62", tintBg: "rgba(47,155,98,0.14)" },
+  declining: { label: "Snel opdrinken", color: "#D19A2E", tintBg: "rgba(209,154,46,0.16)" },
+  past_prime: { label: "Over de top", color: "#A6392E", tintBg: "rgba(166,57,46,0.14)" },
 };
 
 function computeStatus(w) {
@@ -418,7 +418,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
               onClick={(e) => { e.stopPropagation(); onCardCamera(w.id); }}
               title="Foto maken voor deze wijn"
             >
-              <Camera size={15} />
+              <Camera size={16} />
             </button>
           )}
 
@@ -443,11 +443,11 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
 
             {/* ---- Drinkvenster ---- */}
             <div className="back-row">
-              <div className="back-row-icon"><Wine size={18} /></div>
+              <div className="back-row-icon" style={{ background: sm.tintBg, color: sm.color }}><Wine size={18} /></div>
               <div className="back-row-body">
-                <div className="back-row-title">{sm.label}</div>
+                <div className="back-row-title" style={{ color: sm.color }}>{sm.label}</div>
                 {w.peakFrom && w.peakUntil && (
-                  <div className="back-row-sub">Op z'n best {w.peakFrom}–{w.peakUntil}</div>
+                  <div className="back-row-sub">Piek: {w.peakFrom}–{w.peakUntil}</div>
                 )}
               </div>
             </div>
@@ -1491,11 +1491,11 @@ export default function CellarApp() {
           width: 100%; height: 100%; object-fit: cover; display: block;
         }
         .front-camera-btn-secondary {
-          position: absolute; right: 16px; bottom: 16px; z-index: 4;
+          position: absolute; right: 18px; bottom: 36px; z-index: 4;
           display: flex; align-items: center; justify-content: center;
-          width: 40px; height: 40px; border-radius: 50%;
-          background: var(--surface-solid); border: 1px solid var(--ink); color: var(--ink);
-          cursor: pointer;
+          width: 38px; height: 38px; border-radius: 50%;
+          background: var(--surface-solid); border: 1px solid var(--line); color: var(--ink);
+          box-shadow: none; cursor: pointer;
         }
 
         /* ---- Back: detail sheet ---- */
@@ -1540,11 +1540,14 @@ export default function CellarApp() {
           padding: 16px 0; border-bottom: 1px solid var(--line);
         }
         .back-row-icon {
-          width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
-          background: var(--bg); color: var(--ink);
+          width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+          background: var(--surface-solid); border: 1px solid var(--line); color: var(--ink);
           display: flex; align-items: center; justify-content: center;
         }
-        .back-score-circle { font-family: 'Playfair Display', Georgia, serif; font-size: 16px; font-weight: 600; }
+        .back-score-circle {
+          font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 700;
+          line-height: 1; text-align: center;
+        }
         .back-row-body { flex: 1; min-width: 0; }
         .back-row-title { font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.3; }
         .back-row-sub { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
