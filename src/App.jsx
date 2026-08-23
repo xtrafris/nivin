@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { Search, Plus, X, Minus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Grape, Utensils, RefreshCw, SlidersHorizontal, Camera, Pencil, Wine, Tag } from "lucide-react";
 import { supabase, CELLAR_ROW_ID } from "./supabaseClient.js";
 
@@ -31,6 +31,44 @@ function computeStatus(w) {
   if (CURRENT_YEAR <= until) return "prime";
   if (CURRENT_YEAR <= end) return "declining";
   return "past_prime";
+}
+
+function formatGrapes(grapes) {
+  if (!grapes) return "";
+  return grapes.split(/\s*;\s*/).filter(Boolean).join(" • ");
+}
+
+const TASTE_CATEGORIES = {
+  white_light: { group: "Witte wijn", label: "Frisse, lichte witte wijn" },
+  white_fruity: { group: "Witte wijn", label: "Droge, fruitige witte wijn" },
+  white_rich: { group: "Witte wijn", label: "Volle, rijke witte wijn" },
+  red_light: { group: "Rode wijn", label: "Zachte, lichte rode wijn" },
+  red_round: { group: "Rode wijn", label: "Soepele, ronde rode wijn" },
+  red_firm: { group: "Rode wijn", label: "Stevige, diepe rode wijn" },
+  rose: { group: "Overig", label: "Rosé" },
+  sparkling: { group: "Overig", label: "Mousserend" },
+  orange: { group: "Overig", label: "Oranje" },
+};
+// Gebruikt dezelfde onderliggende velden (lichaam, tannine, zuur) als de
+// bestaande smaakprofiel-pilletjes op de kaart, maar dan ingedeeld volgens de
+// categorieën die je ook bij Grapedistrict/Gall & Gall tegenkomt: per
+// wijnkleur een eigen, herkenbare indeling in plaats van één generieke schaal.
+function tasteCategory(w) {
+  const body = w.body || 3, tannin = w.tannin || 1;
+  if (w.type === "white") {
+    if (body <= 2) return "white_light";
+    if (body >= 4) return "white_rich";
+    return "white_fruity";
+  }
+  if (w.type === "red") {
+    if (body <= 2) return "red_light";
+    if (tannin >= 4) return "red_firm";
+    return "red_round";
+  }
+  if (w.type === "rose") return "rose";
+  if (w.type === "sparkling") return "sparkling";
+  if (w.type === "orange") return "orange";
+  return "red_round";
 }
 
 function tasteProfile(w) {
@@ -499,7 +537,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
               <div className="back-row">
                 <div className="back-row-icon" style={{ background: tm.tintBg, color: tm.tintText }}><Grape size={18} /></div>
                 <div className="back-row-body">
-                  {w.grapes && <div className="back-row-title">{w.grapes}</div>}
+                  {w.grapes && <div className="back-row-title">{formatGrapes(w.grapes)}</div>}
                   {w.tastingNotes && (
                     <p className="back-row-sub back-notes-text tasting-notes-clamp">{w.tastingNotes}</p>
                   )}
@@ -914,6 +952,7 @@ export default function CellarApp() {
   }, [view]);
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [tasteFilter, setTasteFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("available");
   const [sortBy, setSortBy] = useState("score");
   const [sortDir, setSortDir] = useState("desc");
@@ -1254,6 +1293,7 @@ export default function CellarApp() {
       if (stockFilter === "opened" && !(w.openedCount > 0)) return false;
       if (typeFilter !== "all" && w.type !== typeFilter) return false;
       if (statusFilter !== "all" && computeStatus(w) !== statusFilter) return false;
+      if (tasteFilter !== "all" && tasteCategory(w) !== tasteFilter) return false;
       if (query) {
         const q = query.toLowerCase();
         const hay = `${w.wine} ${w.producer} ${w.region} ${w.country} ${w.grapes}`.toLowerCase();
@@ -1275,9 +1315,9 @@ export default function CellarApp() {
     list = [...list].sort(cmp);
     if (sortDir === "desc") list.reverse();
     return list;
-  }, [wines, query, typeFilter, statusFilter, stockFilter, sortBy, sortDir]);
+  }, [wines, query, typeFilter, statusFilter, tasteFilter, stockFilter, sortBy, sortDir]);
 
-  const hasActiveFilters = stockFilter !== "available" || typeFilter !== "all" || statusFilter !== "all" || sortBy !== "score" || sortDir !== "desc";
+  const hasActiveFilters = stockFilter !== "available" || typeFilter !== "all" || statusFilter !== "all" || tasteFilter !== "all" || sortBy !== "score" || sortDir !== "desc";
 
   const SORT_OPTIONS = [["score", "Score"], ["window", "Drinkvenster"], ["vintage", "Jaargang"]];
   function sortOptionLabel(key) {
@@ -1290,7 +1330,7 @@ export default function CellarApp() {
   const stockSummary = stockSummaryMap[stockFilter];
   const typeSummary = typeFilter === "all" ? "Alle types" : (TYPE_META[typeFilter]?.label || "Alle types");
   const windowSummary = statusFilter === "all" ? "Elk drinkvenster" : (STATUS_META[statusFilter]?.label || "Elk drinkvenster");
-
+  const tasteSummary = tasteFilter === "all" ? "Elk smaakprofiel" : (TASTE_CATEGORIES[tasteFilter]?.label || "Elk smaakprofiel");
 
 
 
@@ -1444,6 +1484,10 @@ export default function CellarApp() {
         }
         .filter-nav-row-title { display: block; font-size: 15.5px; font-weight: 500; color: var(--ink); }
         .filter-nav-row-sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+        .filter-nav-group-label {
+          font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+          color: var(--muted); padding: 14px 2px 4px;
+        }
         .filter-nav-check { font-size: 15px; font-weight: 700; color: var(--ink); }
 
         .wine-list { padding: 14px 16px 0; display: flex; flex-direction: column; gap: 10px; }
@@ -1904,6 +1948,7 @@ export default function CellarApp() {
                       : filterScreen === "sort" ? "Sorteren"
                       : filterScreen === "stock" ? "Voorraad"
                       : filterScreen === "type" ? "Type"
+                      : filterScreen === "taste" ? "Smaakprofiel"
                       : "Drinkvenster"}
                   </span>
                 </div>
@@ -1928,6 +1973,13 @@ export default function CellarApp() {
                       <span>
                         <span className="filter-nav-row-title">Type</span>
                         <span className="filter-nav-row-sub">{typeSummary}</span>
+                      </span>
+                      <ChevronRight size={16} style={{ color: "var(--muted)" }} />
+                    </button>
+                    <button className="filter-nav-row" onClick={() => setFilterScreen("taste")}>
+                      <span>
+                        <span className="filter-nav-row-title">Smaakprofiel</span>
+                        <span className="filter-nav-row-sub">{tasteSummary}</span>
                       </span>
                       <ChevronRight size={16} style={{ color: "var(--muted)" }} />
                     </button>
@@ -1979,6 +2031,31 @@ export default function CellarApp() {
                         {typeFilter === k && <span className="filter-nav-check">✓</span>}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {filterScreen === "taste" && (
+                  <div className="filter-nav-list">
+                    <button className="filter-nav-row" onClick={() => setTasteFilter("all")}>
+                      <span className="filter-nav-row-title">Elk smaakprofiel</span>
+                      {tasteFilter === "all" && <span className="filter-nav-check">✓</span>}
+                    </button>
+                    {(() => {
+                      let lastGroup = null;
+                      return Object.entries(TASTE_CATEGORIES).map(([k, v]) => {
+                        const showGroupLabel = v.group !== lastGroup;
+                        lastGroup = v.group;
+                        return (
+                          <Fragment key={k}>
+                            {showGroupLabel && <div className="filter-nav-group-label">{v.group}</div>}
+                            <button className="filter-nav-row" onClick={() => setTasteFilter(k)}>
+                              <span className="filter-nav-row-title">{v.label}</span>
+                              {tasteFilter === k && <span className="filter-nav-check">✓</span>}
+                            </button>
+                          </Fragment>
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 
