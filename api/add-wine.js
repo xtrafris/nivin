@@ -66,7 +66,7 @@ async function identifyAndEnrichWine(photoBase64, mimeType, anthropicKey) {
   const currentYear = new Date().getFullYear();
   const prompt = `Je bent een wijnexpert met toegang tot actuele webzoekresultaten. Op de bijgevoegde foto staat een wijnetiket. Het huidige jaar is ${currentYear}.
 
-Stap 1: Lees het etiket nauwkeurig en identificeer de wijn: naam, producent/wijnhuis, jaargang, land, streek, druivenras(sen), type (red/white/rose/sparkling/orange). Geef land en streek in het Nederlands (bv. "Italië" niet "Italy", "Toscane" niet "Tuscany", "Loire-vallei" niet "Loire Valley").
+Stap 1: Lees het etiket nauwkeurig en identificeer de wijn: naam, producent/wijnhuis, jaargang, land, streek, druivenras(sen) — bij een blend alleen de druivensoorten zelf, gescheiden door ";", zonder percentages —, type (red/white/rose/sparkling/orange). Geef land en streek in het Nederlands (bv. "Italië" niet "Italy", "Toscane" niet "Tuscany", "Loire" niet "Loire Valley").
 Stap 2: Zoek op internet naar scores van deze bronnen (alleen invullen als je een score écht hebt gevonden, nooit verzinnen): ${RATING_SOURCES_HINT}. Vivino als getal 1-5 met 1 decimaal, andere bronnen als score op 100.
 Stap 3: Zoek de huidige winkelprijs, bij voorkeur bij een Nederlandse of Belgische wijnhandel.
 Stap 4: Schrijf een korte, feitelijke omschrijving van het wijnhuis (2-3 zinnen), in het Nederlands. Schrijf ook proefnotities in simpele, alledaagse taal (max. 3 regels, dus kort) — geen wijnjargon zoals "mineraliteit", "gestructureerd" of "garrigue", gewoon herkenbare smaken en geuren zoals een leek ze zou noemen.
@@ -74,7 +74,7 @@ Stap 5: Schat een realistisch drinkvenster in — vanaf welk jaar tot welk jaar 
 Stap 6: Zoek uit of het wijnhuis/deze wijn een biologisch of biodynamisch certificaat heeft (bv. EU-biologisch, Demeter, Ecocert, Biodyvin). Vul "organic" alleen in als je dit ergens expliciet bevestigd ziet — laat het op null staan als je het niet zeker weet, verzin dit nooit.
 
 Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null voor velden die je niet kunt vaststellen, verzin nooit scores of prijzen — het drinkvenster in stap 5 mag wel een onderbouwde inschatting zijn):
-{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030, "organic": null}`;
+{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030, "organic": null}`;
 
   const data = await callClaudeForWineJson(
     [
@@ -93,7 +93,7 @@ async function identifyAndEnrichWineFromText(description, anthropicKey) {
 Een gebruiker heeft de volgende, mogelijk beknopte of losse omschrijving van een wijn gegeven — bijvoorbeeld alleen een naam, jaargang en/of wijnhuis:
 "${description}"
 
-Stap 1: Zoek op internet uit om welke specifieke wijn het gaat, en identificeer: volledige naam, producent/wijnhuis, jaargang, land, streek, druivenras(sen), type (red/white/rose/sparkling/orange). Als de jaargang niet genoemd is, gebruik dan de meest recente courante jaargang die je kunt vinden. Geef land en streek in het Nederlands (bv. "Italië" niet "Italy", "Toscane" niet "Tuscany", "Loire-vallei" niet "Loire Valley").
+Stap 1: Zoek op internet uit om welke specifieke wijn het gaat, en identificeer: volledige naam, producent/wijnhuis, jaargang, land, streek, druivenras(sen) — bij een blend alleen de druivensoorten zelf, gescheiden door ";", zonder percentages —, type (red/white/rose/sparkling/orange). Als de jaargang niet genoemd is, gebruik dan de meest recente courante jaargang die je kunt vinden. Geef land en streek in het Nederlands (bv. "Italië" niet "Italy", "Toscane" niet "Tuscany", "Loire" niet "Loire Valley").
 Stap 2: Zoek op internet naar scores van deze bronnen (alleen invullen als je een score écht hebt gevonden, nooit verzinnen): ${RATING_SOURCES_HINT}. Vivino als getal 1-5 met 1 decimaal, andere bronnen als score op 100.
 Stap 3: Zoek de huidige winkelprijs, bij voorkeur bij een Nederlandse of Belgische wijnhandel.
 Stap 4: Schrijf een korte, feitelijke omschrijving van het wijnhuis (2-3 zinnen), in het Nederlands. Schrijf ook proefnotities in simpele, alledaagse taal (max. 3 regels, dus kort) — geen wijnjargon zoals "mineraliteit", "gestructureerd" of "garrigue", gewoon herkenbare smaken en geuren zoals een leek ze zou noemen.
@@ -101,7 +101,7 @@ Stap 5: Schat een realistisch drinkvenster in — vanaf welk jaar tot welk jaar 
 Stap 6: Zoek uit of het wijnhuis/deze wijn een biologisch of biodynamisch certificaat heeft (bv. EU-biologisch, Demeter, Ecocert, Biodyvin). Vul "organic" alleen in als je dit ergens expliciet bevestigd ziet — laat het op null staan als je het niet zeker weet, verzin dit nooit.
 
 Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in exact dit formaat (gebruik null voor velden die je niet kunt vaststellen, verzin nooit scores of prijzen — het drinkvenster in stap 5 mag wel een onderbouwde inschatting zijn):
-{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€ 18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030, "organic": null}`;
+{"wine": "...", "producer": "...", "vintage": "...", "country": "...", "region": "...", "grapes": "...", "type": "red", "ratings": {"vivino": 4.2}, "priceValue": "€18 - 22", "priceNote": "...", "description": "...", "tastingNotes": "...", "drinkFrom": 2025, "drinkUntil": 2032, "peakFrom": 2027, "peakUntil": 2030, "organic": null}`;
 
   return callClaudeForWineJson([{ type: "text", text: prompt }], anthropicKey);
 }
