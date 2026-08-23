@@ -2416,7 +2416,7 @@ export default function CellarApp() {
             <div className="photo-processing-spinner" />
             <p className="modal-hint" style={{ marginTop: 14, textAlign: "center" }}>
               Wijn herkennen en gegevens opzoeken…
-              <br />Dit kan zo'n 20-30 seconden duren.
+              <br />Dit kan zo'n 30-60 seconden duren.
             </p>
           </div>
         </div>
@@ -2453,7 +2453,7 @@ export default function CellarApp() {
                 ? `"${photoAddResult.wineName}" stond al in je kelder — het aantal is met 1 opgehoogd, en de gegevens zijn ververst.`
                 : photoAddResult.mode === "photoUpdated"
                 ? `De foto (en gegevens) van "${photoAddResult.wineName}" zijn bijgewerkt.`
-                : `"${photoAddResult.wineName}" is toegevoegd aan je kelder, inclusief productfoto en gevonden gegevens.`}
+                : `"${photoAddResult.wineName}" is toegevoegd aan je kelder.`}
             </p>
             <button className="btn-open" style={{ width: "100%", justifyContent: "center" }} onClick={() => setPhotoAddResult(null)}>
               Mooi zo
