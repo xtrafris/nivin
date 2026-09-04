@@ -1093,6 +1093,8 @@ export default function CellarApp() {
   const [view, setView] = useState("list");
   const [pairingSeedId, setPairingSeedId] = useState(null);
   const [wines, setWines] = useState([]);
+  const winesRef = useRef([]);
+  useEffect(() => { winesRef.current = wines; }, [wines]);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState(false);
   const [saveErrorDetail, setSaveErrorDetail] = useState("");
@@ -1191,8 +1193,7 @@ export default function CellarApp() {
     photoMigrationRanRef.current = true;
 
     (async () => {
-      let changed = false;
-      const next = [...wines];
+      const photoUpdates = {}; // wijn-id -> nieuwe Storage-URL, verzameld tijdens het uploaden
       for (const w of embedded) {
         try {
           const match = w.bottlePhoto.match(/^data:(.+?);base64,(.+)$/);
@@ -1214,17 +1215,20 @@ export default function CellarApp() {
           }
           const { data } = supabase.storage.from("wine-photos").getPublicUrl(path);
           if (data && data.publicUrl) {
-            const idx = next.findIndex(x => x.id === w.id);
-            if (idx !== -1) {
-              next[idx] = { ...next[idx], bottlePhoto: data.publicUrl };
-              changed = true;
-            }
+            photoUpdates[w.id] = data.publicUrl;
           }
         } catch (e) {
           console.warn("Foto-migratie: fout bij", w.id, e);
         }
       }
-      if (changed) {
+      if (Object.keys(photoUpdates).length > 0) {
+        // Belangrijk: pas de gevonden foto-URL's toe op de meest actuele
+        // wijnenlijst (via winesRef), niet op de verouderde momentopname van
+        // toen de migratie begon — anders kan een ondertussen opgeslagen
+        // wijziging (bv. via het wijzig-scherm) hier per ongeluk weer
+        // overschreven worden met oudere data.
+        const latest = winesRef.current;
+        const next = latest.map(w => photoUpdates[w.id] ? { ...w, bottlePhoto: photoUpdates[w.id] } : w);
         await persist(next);
       } else {
         // Niets gelukt (bv. bucket ontbreekt nog) — bij een volgend bezoek gewoon opnieuw proberen.
