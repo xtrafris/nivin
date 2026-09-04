@@ -40,6 +40,16 @@ function computeStatus(w) {
   return "past_prime";
 }
 
+// Knipt een proefnotitie hard af op een woordenaantal, altijd op een woordgrens
+// (nooit midden in een woord) — een technische garantie die niet afhankelijk is
+// van of de AI zich netjes aan de gevraagde limiet houdt.
+function truncateWords(text, maxWords = 25) {
+  if (!text) return text;
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text.trim();
+  return words.slice(0, maxWords).join(" ") + "…";
+}
+
 function formatGrapes(grapes) {
   if (!grapes) return "";
   // Strip eventuele percentages (bv. "60% Merlot" of "Merlot 60%") — we tonen
@@ -568,7 +578,7 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
                     </div>
                   )}
                   {w.tastingNotes && (
-                    <p className="back-row-sub back-notes-text tasting-notes-clamp">{w.tastingNotes}</p>
+                    <p className="back-row-sub back-notes-text">{truncateWords(w.tastingNotes)}</p>
                   )}
                 </div>
               </div>
@@ -1336,7 +1346,7 @@ export default function CellarApp() {
               priceValue: info.priceValue || w.priceValue,
               priceNote: info.priceNote || w.priceNote,
               description: info.description || w.description,
-              tastingNotes: info.tastingNotes || w.tastingNotes,
+              tastingNotes: info.tastingNotes ? truncateWords(info.tastingNotes) : w.tastingNotes,
               drinkFrom: info.drinkFrom || w.drinkFrom,
               drinkUntil: info.drinkUntil || w.drinkUntil,
               peakFrom: info.peakFrom || w.peakFrom,
@@ -1368,7 +1378,7 @@ export default function CellarApp() {
               priceValue: info.priceValue || w.priceValue,
               priceNote: info.priceNote || w.priceNote,
               description: info.description || w.description,
-              tastingNotes: info.tastingNotes || w.tastingNotes,
+              tastingNotes: info.tastingNotes ? truncateWords(info.tastingNotes) : w.tastingNotes,
               drinkFrom: info.drinkFrom || w.drinkFrom,
               drinkUntil: info.drinkUntil || w.drinkUntil,
               peakFrom: info.peakFrom || w.peakFrom,
@@ -1397,7 +1407,7 @@ export default function CellarApp() {
           peakFrom: info.peakFrom || null, peakUntil: info.peakUntil || null, organic: info.organic || null,
           score: null, body: null, sweetness: null, tannin: null, acidity: null, alcohol: null,
           ratings: info.ratings || {}, priceValue: info.priceValue || null, priceNote: info.priceNote || "",
-          description: info.description || "", tastingNotes: info.tastingNotes || "",
+          description: info.description || "", tastingNotes: truncateWords(info.tastingNotes) || "",
           currentPrice: null, notes: "",
           added: new Date().toISOString().slice(0, 10), openedCount: 0,
           bottlePhoto: data.packshot || null,
@@ -1448,7 +1458,7 @@ export default function CellarApp() {
               priceValue: info.priceValue || w.priceValue,
               priceNote: info.priceNote || w.priceNote,
               description: info.description || w.description,
-              tastingNotes: info.tastingNotes || w.tastingNotes,
+              tastingNotes: info.tastingNotes ? truncateWords(info.tastingNotes) : w.tastingNotes,
               drinkFrom: info.drinkFrom || w.drinkFrom,
               drinkUntil: info.drinkUntil || w.drinkUntil,
               peakFrom: info.peakFrom || w.peakFrom,
@@ -1477,7 +1487,7 @@ export default function CellarApp() {
           peakFrom: info.peakFrom || null, peakUntil: info.peakUntil || null, organic: info.organic || null,
           score: null, body: null, sweetness: null, tannin: null, acidity: null, alcohol: null,
           ratings: info.ratings || {}, priceValue: info.priceValue || null, priceNote: info.priceNote || "",
-          description: info.description || "", tastingNotes: info.tastingNotes || "",
+          description: info.description || "", tastingNotes: truncateWords(info.tastingNotes) || "",
           currentPrice: null, notes: "",
           added: new Date().toISOString().slice(0, 10), openedCount: 0,
           bottlePhoto: null, // geen foto bij handmatig toevoegen
@@ -1885,10 +1895,6 @@ export default function CellarApp() {
         }
 
         .tasting-notes { font-size: 12.5px; line-height: 1.45; margin: 6px 0 0; color: var(--text-soft); }
-        .tasting-notes-clamp {
-          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
 
         /* ---- Nieuwe rij-structuur op de achterkant: icoon-bol + titel + subtekst ---- */
         .back-row {
