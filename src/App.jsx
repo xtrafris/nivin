@@ -318,23 +318,34 @@ function WineCard({ w, onOpen, onExpand, expanded, onMatchDish, onSetQuantity, o
   const [priceRefreshErrorDetail, setPriceRefreshErrorDetail] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  const [editSaveStatus, setEditSaveStatus] = useState("idle"); // idle | saving | error
 
   function openEditModal(e) {
     e.stopPropagation();
     setEditForm({ wine: w.wine || "", producer: w.producer || "", vintage: w.vintage || "", region: w.region || "", country: w.country || "" });
+    setEditSaveStatus("idle");
     setShowEditModal(true);
   }
 
-  function saveEditForm(e) {
+  async function saveEditForm(e) {
     e.stopPropagation();
-    onUpdateWine(w.id, {
+    setEditSaveStatus("saving");
+    const ok = await onUpdateWine(w.id, {
       wine: editForm.wine.trim() || w.wine,
       producer: editForm.producer.trim(),
       vintage: editForm.vintage.trim(),
       region: editForm.region.trim(),
       country: editForm.country.trim(),
     });
-    setShowEditModal(false);
+    if (ok) {
+      setShowEditModal(false);
+      setEditSaveStatus("idle");
+    } else {
+      // Niet gelukt om weg te schrijven (bv. een trage verbinding) — laat het
+      // venster open zodat de wijziging niet stilletjes verloren gaat, en
+      // geef een duidelijke foutmelding zodat het niet lijkt of het wél lukte.
+      setEditSaveStatus("error");
+    }
   }
 
   function handleOpenClick(e) {
@@ -764,9 +775,19 @@ Antwoord ALLEEN met geldige JSON, geen andere tekst, geen markdown-backticks, in
                 <input value={editForm.country} onChange={e => setEditForm({ ...editForm, country: e.target.value })} />
               </label>
             </div>
-            <button className="btn-open" style={{ width: "100%", justifyContent: "center", marginTop: 6 }} onClick={saveEditForm}>
-              Opslaan
+            <button
+              className="btn-open"
+              style={{ width: "100%", justifyContent: "center", marginTop: 6 }}
+              onClick={saveEditForm}
+              disabled={editSaveStatus === "saving"}
+            >
+              {editSaveStatus === "saving" ? <div className="photo-processing-spinner photo-processing-spinner-sm" /> : "Opslaan"}
             </button>
+            {editSaveStatus === "error" && (
+              <div className="modal-error" style={{ marginTop: 10 }}>
+                Opslaan is niet gelukt (mogelijk een trage verbinding). Je wijzigingen staan nog in dit venster — probeer het nog eens.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1222,7 +1243,7 @@ export default function CellarApp() {
           .upsert({ id: CELLAR_ROW_ID, data: next, updated_at: new Date().toISOString() });
         if (error) throw error;
         setSaveError(false);
-        return;
+        return true;
       } catch (e) {
         lastErr = e;
         if (attempt < 2) await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
@@ -1230,6 +1251,7 @@ export default function CellarApp() {
     }
     setSaveErrorDetail(String((lastErr && lastErr.message) || lastErr || "onbekende fout"));
     setSaveError(true);
+    return false;
   }
 
   function openBottle(id) {
@@ -1239,7 +1261,7 @@ export default function CellarApp() {
 
   function updateWine(id, updates) {
     const next = wines.map(w => w.id === id ? { ...w, ...updates } : w);
-    persist(next);
+    return persist(next);
   }
 
   function setQuantity(id, qty) {
